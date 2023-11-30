@@ -5,9 +5,9 @@ PATH = "saved_db.csv"
 
 
 def read_data():
-    # Generate random data (replace this with your actual data)
     # Read vectors from CSV file
     df = pd.read_csv(PATH)
+    df = df.drop(df.columns[0], axis=1)
 
     # Extract the vectors from the DataFrame
     return df.values
