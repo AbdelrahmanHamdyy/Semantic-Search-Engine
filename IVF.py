@@ -65,7 +65,7 @@ def search(query, k, centroids, inverted_index, nprobe):
 
         # Calculate distances to the query
         distances = [euclidean_distance(vector.data, query)
-                     for vector in centroid_vectors]
+                    for vector in centroid_vectors]
 
         # Select top k vectors in the current centroid
         sorted_distances = np.argsort(distances)[:k]
@@ -115,7 +115,7 @@ def ivf_faiss():
     index.nprobe = 10
 
     results = run_queries(data, top_k=5, num_runs=10,
-                          algo="faiss", index=index)
+                        algo="faiss", index=index)
     print(eval(results))
 
 
@@ -142,6 +142,6 @@ def ivf(option="build"):
 
 
 if __name__ == '__main__':
-    # ivf("build")
-    ivf("search")
+    ivf("build")
+    # ivf("search")
     # ivf_faiss()
