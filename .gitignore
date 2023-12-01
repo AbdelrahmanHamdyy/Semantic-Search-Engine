@@ -160,4 +160,4 @@ cython_debug/
 #.idea/
 
 saved_db.csv
-index.pkl
+index.bin

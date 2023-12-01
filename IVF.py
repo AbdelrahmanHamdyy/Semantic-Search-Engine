@@ -34,12 +34,12 @@ def generate_ivf(vectors, centroids):
     return inverted_index
 
 
-def save_index(index, path='index.pkl'):
+def save_index(index, path='index.bin'):
     with open(path, 'wb') as file:
         pickle.dump(index, file)
 
 
-def load_index(path='index.pkl'):
+def load_index(path='index.bin'):
     with open(path, 'rb') as file:
         return pickle.load(file)
 
@@ -65,7 +65,7 @@ def search(query, k, centroids, inverted_index, nprobe):
 
         # Calculate distances to the query
         distances = [euclidean_distance(vector.data, query)
-                    for vector in centroid_vectors]
+                     for vector in centroid_vectors]
 
         # Select top k vectors in the current centroid
         sorted_distances = np.argsort(distances)[:k]
@@ -105,9 +105,9 @@ def run_queries(np_rows, top_k, num_runs, algo, centroids=[], index=[]):
 
 
 def ivf_faiss():
-    data = np.random.random((1000000, 70))
+    data = np.random.random((100000, 70))
     d = 70
-    nlist = 50
+    nlist = 30
     quantizer = faiss.IndexFlatL2(d)
     index = faiss.IndexIVFFlat(quantizer, d, nlist)
     index.train(data)
@@ -115,13 +115,13 @@ def ivf_faiss():
     index.nprobe = 10
 
     results = run_queries(data, top_k=5, num_runs=10,
-                        algo="faiss", index=index)
+                          algo="faiss", index=index)
     print(eval(results))
 
 
 def generate_vectors():
     db = VecDBWorst()
-    records_np = np.random.random((1000000, 70))
+    records_np = np.random.random((100000, 70))
     records_dict = [{"id": i, "embed": list(row)}
                     for i, row in enumerate(records_np)]
     db.insert_records(records_dict)
@@ -131,7 +131,7 @@ def ivf(option="build"):
     if option == "build":
         generate_vectors()
         vectors = read_data()
-        build_index(vectors, num_of_clusters=50)
+        build_index(vectors, num_of_clusters=30)
     else:
         vectors = read_data()
         index = load_index()
