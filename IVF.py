@@ -1,5 +1,6 @@
 import numpy as np
 import pickle
+import bisect
 from main import *
 from kmeans import *
 from evaluation import *
@@ -49,18 +50,31 @@ def build_index(vectors, num_of_clusters):
     save_index(inverted_index)
 
 
-def search(query, k, centroids, inverted_index):
+def search(query, k, centroids, inverted_index, nprobe):
     # Find the nearest centroid to the query
     similarities = cosine_similarity(query, centroids)
-    nearest_centroid_idx = np.argmax(similarities)
+    nearest_centroid_indices = np.argsort(similarities)[0][-nprobe:]
 
-    # Find the nearest vectors to the query
-    nearest_vectors = inverted_index[centroids[nearest_centroid_idx]]
-    nearest_vectors = sorted(nearest_vectors, key=lambda x: cosine_similarity(
-        x.data.reshape(1, -1), query.reshape(1, -1)))[:k]
+    # Search in each of the nearest centroids
+    nearest_vectors = []
+    for centroid_idx in nearest_centroid_indices:
+        centroid = centroids[centroid_idx]
+
+        # Find vectors in the current centroid
+        centroid_vectors = inverted_index[centroid]
+
+        # Calculate distances to the query
+        distances = [euclidean_distance(vector.data, query)
+                     for vector in centroid_vectors]
+
+        # Select top k vectors in the current centroid
+        sorted_distances = np.argsort(distances)[:k]
+        for idx in sorted_distances:
+            node = centroid_vectors[idx]
+            bisect.insort(nearest_vectors, (distances[idx], node.id))
 
     # Return ids of these vectors
-    result = [vector.id for vector in nearest_vectors]
+    result = [vector[1] for vector in nearest_vectors[:k]]
 
     return result
 
@@ -76,13 +90,13 @@ def run_queries(np_rows, top_k, num_runs, algo, centroids=[], index=[]):
             D, I = index.search(query, top_k)
             db_ids = I[0]
         else:
-            db_ids = search(query, top_k, centroids, index)
+            db_ids = search(query, top_k, centroids, index, nprobe=10)
         toc = time.time()
         run_time = toc - tic
 
         tic = time.time()
         actual_ids = np.argsort(np_rows.dot(query.T).T / (np.linalg.norm(
-            np_rows, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()
+            np_rows, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
         toc = time.time()
         np_run_time = toc - tic
 
@@ -93,7 +107,7 @@ def run_queries(np_rows, top_k, num_runs, algo, centroids=[], index=[]):
 def ivf_faiss():
     data = np.random.random((1000000, 70))
     d = 70
-    nlist = 30
+    nlist = 50
     quantizer = faiss.IndexFlatL2(d)
     index = faiss.IndexIVFFlat(quantizer, d, nlist)
     index.train(data)
@@ -117,7 +131,7 @@ def ivf(option="build"):
     if option == "build":
         generate_vectors()
         vectors = read_data()
-        build_index(vectors, num_of_clusters=30)
+        build_index(vectors, num_of_clusters=50)
     else:
         vectors = read_data()
         index = load_index()
@@ -128,6 +142,6 @@ def ivf(option="build"):
 
 
 if __name__ == '__main__':
-    ivf("build")
-    # ivf("search")
+    # ivf("build")
+    ivf("search")
     # ivf_faiss()
