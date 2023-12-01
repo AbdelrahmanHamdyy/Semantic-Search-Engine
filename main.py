@@ -6,7 +6,7 @@ PATH = "saved_db.csv"
 
 def read_data():
     # Read vectors from CSV file
-    df = pd.read_csv(PATH)
+    df = pd.read_csv(PATH, header=None)
     df = df.drop(df.columns[0], axis=1)
 
     # Extract the vectors from the DataFrame
