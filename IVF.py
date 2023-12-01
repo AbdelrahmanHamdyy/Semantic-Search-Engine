@@ -10,9 +10,9 @@ import faiss
 import struct
 
 
-N = 1000000  # Size of the data
+N = 100000  # Size of the data
 CLUSTERS = 30  # Number of clusters
-P = 5  # Probing count
+P = 10  # Probing count
 D = 70  # Vector Dimension
 
 K = 5  # TOP_K
@@ -210,6 +210,6 @@ def ivf(option="build"):
 
 
 if __name__ == '__main__':
-    ivf("build")
-    ivf("search")
-    # ivf_faiss()
+    # ivf("build")
+    # ivf("search")
+    ivf_faiss()

@@ -55,7 +55,9 @@ def eval(results: List[Result]):
             except:
                 score -= len(res.actual_ids)
         scores.append(score)
-    return sum(scores) / len(scores), sum(run_time) / len(run_time)
+
+    acc = sum(1 for num in scores if num == 0)
+    return sum(scores) / len(scores), sum(run_time) / len(run_time), acc/len(scores)
 
 
 if __name__ == "__main__":
