@@ -7,7 +7,7 @@ from evaluation import *
 from worst_case_implementation import *
 from sklearn.metrics.pairwise import cosine_similarity
 import faiss
-
+import struct
 
 class Node:
     def __init__(self, id, data):
@@ -49,10 +49,19 @@ def generate_ivf(vectors, centroids):
     return centroids_dict, inverted_index
 
 
-def save(data, path='index.bin'):
+def save_index(data, path='index.bin'):
     with open(path, 'wb') as file:
-        pickle.dump(data, file)
+        # pickle.dump(data, file)
+        for ele in data:
+            for node in ele:
+                binary_data = struct.pack('I' + 'f' * len(node.data), node.id, *node.data)
+                file.write(binary_data)
 
+def save_centroids(data, path='centroids.bin'):
+    with open(path, 'wb') as file:
+        for ele in data:
+            binary_data = struct.pack( 'f' * len(ele[0])+'I' +'I' ,  *ele[0],ele[1],ele[2])
+            file.write(binary_data)
 
 def load(path='index.bin'):
     with open(path, 'rb') as file:
@@ -67,8 +76,8 @@ def build_index(vectors, num_of_clusters):
     for v in list(inverted_index.values()):
         for node in v:
             print("VVV", node.id, node.data)
-    save(list(centroids_dict.values()), "centroids.bin")
-    save(list(inverted_index.values()), "index.bin")
+    save_centroids(list(centroids_dict.values()), "centroids.bin")
+    save_index(list(inverted_index.values()), "index.bin")
 
 
 def search(query, k, centroids, inverted_index, nprobe):

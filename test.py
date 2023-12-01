@@ -1,6 +1,7 @@
 import struct
-
-
+import pickle
+from IVF import *
+import binascii
 # list_of_dicts = [
 #     {'id': 0, 'embed': [0.4937723169626643, 0.43335433190404127, 0.8187348585930836,
 #                         0.34622322564002284, 0.7649056106341516, 0.6889160617701864, 0.27486782593025993]},
@@ -24,21 +25,37 @@ import struct
 
 
 def test_seek():
-    record_size = (8 * 7) + 4
-    record_format = 'i' * 1 + 'f' * 7
-    with open('index.bin', 'rb') as file:
-        while True:
-            # Reading a record (70 bytes)
-            record = file.read(struct.calcsize(record_format))
-            record = struct.unpack(record_format, record)
+    # record_size = (8 * 7) + 4
+    # record_format = 'i' * 1 + 'f' * 7
+    # record_size = struct.calcsize(record_format)
+    # counter=0
+    # with open('index.bin', 'rb') as file:
+    #     while True:
+    #         # Reading a record (70 bytes)
+    #         record = file.read(record_size)
+    #         record = struct.unpack(record_format, record)
 
-            # Check if the record is empty, indicating the end of the file
-            if not record:
-                break
+    #         # Check if the record is empty, indicating the end of the file
+    #         if not record:
+    #             break
+        
+    #         # Process the record (you can print or do something with it)
+    #         print("Record", record)
+    chunk_size = struct.calcsize('I') + struct.calcsize('f') * 7
 
-            # Process the record (you can print or do something with it)
-            print("Record", record)
+    with open('index.bin', "rb") as file:
+        while chunk := file.read(chunk_size):
+            # Unpacking the binary data
+            id_value, *values = struct.unpack('I' + 'f' * 7, chunk)
+            print(f"[{id_value}] {values}")
 
+    chunk_size = struct.calcsize('f') * 7+struct.calcsize('I')+struct.calcsize('I')
+
+    with open('centroids.bin', "rb") as file:
+        while chunk := file.read(chunk_size):
+            # Unpacking the binary data
+            *values,x,y = struct.unpack( 'f' * 7+'I' +'I' , chunk)
+            print(f"[{values}] {x} {y}")
 
 if __name__ == '__main__':
     test_seek()
