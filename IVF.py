@@ -7,21 +7,15 @@ from PQ import *
 from kmeans import *
 from evaluation import *
 from worst_case_implementation import *
-from sklearn.metrics.pairwise import cosine_similarity
 
 
-N = 100000  # Size of the data
+N = 1000000  # Size of the data
 D = 70  # Vector Dimension
 K = 5  # TOP_K
 RUNS = 10  # Number of Runs
 
-# 100k
-CLUSTERS = 32  # Number of clusters
-P = K  # Probing count
-
-# 1M
-# CLUSTERS = 500
-# P = 100
+CLUSTERS = 50  # Number of clusters
+P = 10  # Probing count
 
 
 class Node:
@@ -41,8 +35,12 @@ class IVF:
         self.centroids = None
         self.vectors = None
 
-    def euclidean_distance(self, vec1, vec2):
-        return np.linalg.norm(vec1 - vec2)
+    def calc_similarity(self, vec1, vec2):
+        dot_product = np.dot(vec1, vec2)
+        norm_vec1 = np.linalg.norm(vec1)
+        norm_vec2 = np.linalg.norm(vec2)
+        cosine_similarity = dot_product / (norm_vec1 * norm_vec2)
+        return cosine_similarity
 
     def generate_ivf(self, quantize=False, pq: PQ = None):
         inverted_index = {i: [] for i in range(len(self.centroids))}
@@ -50,7 +48,12 @@ class IVF:
                           for i in range(len(self.centroids))}
 
         # Assign each vector to the nearest centroid
-        similarities = cosine_similarity(self.vectors, self.centroids)
+        similarities = []
+        for vector in self.vectors:
+            vec_nearest = []
+            for centroid in self.centroids:
+                vec_nearest.append(self.calc_similarity(vector, centroid))
+            similarities.append(vec_nearest)
         assigned_centroids = np.argmax(similarities, axis=1)
 
         for vector_id, centroid_idx in enumerate(assigned_centroids):
@@ -114,8 +117,8 @@ class IVF:
         return centroids
 
     def build_index(self, quantize=False, pq: PQ = None):
-        self.centroids = run_kmeans_minibatch(self.vectors, k=self.n_clusters)
-        # self.centroids = run_kmeans2(self.vectors, k=self.n_clusters)
+        # self.centroids = run_kmeans_minibatch(self.vectors, k=self.n_clusters)
+        self.centroids = run_kmeans2(self.vectors, k=self.n_clusters)
         # self.centroids = run_kmeans(self.vectors, k=self.n_clusters)
 
         centroids_dict, index = self.generate_ivf(quantize, pq)
@@ -144,9 +147,10 @@ class IVF:
             counts.append(centroid_obj[1])
             prev_counts.append(centroid_obj[2])
 
-        # Find the nearest centroid to the query
-        similarities = cosine_similarity(query, centroid_vectors)
-        nearest_centroid_indices = np.argsort(similarities)[0][-self.n_probe:]
+        similarities = []
+        for centroid in centroid_vectors:
+            similarities.append(self.calc_similarity(query[0], centroid))
+        nearest_centroid_indices = np.argsort(similarities)[-self.n_probe:]
 
         if pq is not None:
             query = pq.get_compressed_data(query)
@@ -171,16 +175,16 @@ class IVF:
                             np.array(query), np.array(vector), dim))
                     else:
                         distances.append(
-                            self.euclidean_distance(vector, query))
+                            self.calc_similarity(vector, query[0]))
                     ids.append(id)
 
                     count += 1
 
-            sorted_distances = np.argsort(distances)[:k]
+            sorted_distances = np.argsort(distances)[-k:]
             for idx in sorted_distances:
                 bisect.insort(nearest_vectors, (distances[idx], ids[idx]))
 
-        return [vector[1] for vector in nearest_vectors[:k]]
+        return [vector[1] for vector in nearest_vectors[-k:]]
 
     def run_queries(self, np_rows, top_k, num_runs, algo, dim=D, index=[], pq: PQ = None):
         results = []
