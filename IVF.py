@@ -10,19 +10,18 @@ from worst_case_implementation import *
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-N = 1000000  # Size of the data
-
-# 100k
-# CLUSTERS = 4 * int(math.sqrt(N))  # Number of clusters
-# P = CLUSTERS // 5  # Probing count
-
-# 1M
-CLUSTERS = 500
-P = 100
+N = 100000  # Size of the data
 D = 70  # Vector Dimension
-
 K = 5  # TOP_K
 RUNS = 10  # Number of Runs
+
+# 100k
+CLUSTERS = 32  # Number of clusters
+P = K  # Probing count
+
+# 1M
+# CLUSTERS = 500
+# P = 100
 
 
 class Node:
@@ -39,23 +38,25 @@ class IVF:
         self.dim = dim
         self.index_file_path = "index.bin"
         self.centroids_file_path = "centroids.bin"
+        self.centroids = None
+        self.vectors = None
 
     def euclidean_distance(self, vec1, vec2):
         return np.linalg.norm(vec1 - vec2)
 
-    def generate_ivf(self, vectors, centroids, quantize=False, pq: PQ = None):
-        inverted_index = {i: [] for i in range(len(centroids))}
-        centroids_dict = {i: [centroids[i], 0, 0]
-                          for i in range(len(centroids))}
+    def generate_ivf(self, quantize=False, pq: PQ = None):
+        inverted_index = {i: [] for i in range(len(self.centroids))}
+        centroids_dict = {i: [self.centroids[i], 0, 0]
+                          for i in range(len(self.centroids))}
 
         # Assign each vector to the nearest centroid
-        similarities = cosine_similarity(vectors, centroids)
+        similarities = cosine_similarity(self.vectors, self.centroids)
         assigned_centroids = np.argmax(similarities, axis=1)
 
         for vector_id, centroid_idx in enumerate(assigned_centroids):
             centroids_dict[centroid_idx][1] += 1
             vec = pq.get_compressed_data(
-                vectors[vector_id]) if quantize else vectors[vector_id]
+                self.vectors[vector_id]) if quantize else self.vectors[vector_id]
             inverted_index[centroid_idx].append(Node(vector_id, vec))
 
         # Sort centroids_dict and inverted_index
@@ -112,13 +113,12 @@ class IVF:
 
         return centroids
 
-    def build_index(self, vectors, quantize=False, pq: PQ = None):
-        centroids = run_kmeans_minibatch(vectors, k=self.n_clusters)
-        # centroids = run_kmeans2(vectors, k=self.n_clusters)
-        # centroids = run_kmeans(vectors, k=self.n_clusters)
+    def build_index(self, quantize=False, pq: PQ = None):
+        self.centroids = run_kmeans_minibatch(self.vectors, k=self.n_clusters)
+        # self.centroids = run_kmeans2(self.vectors, k=self.n_clusters)
+        # self.centroids = run_kmeans(self.vectors, k=self.n_clusters)
 
-        centroids_dict, index = self.generate_ivf(
-            vectors, centroids, quantize, pq)
+        centroids_dict, index = self.generate_ivf(quantize, pq)
 
         centroids_dict = list(centroids_dict.values())
         index = list(index.values())
@@ -137,9 +137,9 @@ class IVF:
 
         return pqd
 
-    def search(self, query, k, centroids, dim=D, pq: PQ = None):
+    def search(self, query, k, dim=D, pq: PQ = None):
         counts, prev_counts, centroid_vectors = [], [], []
-        for centroid_obj in centroids:
+        for centroid_obj in self.centroids:
             centroid_vectors.append(centroid_obj[0])
             counts.append(centroid_obj[1])
             prev_counts.append(centroid_obj[2])
@@ -165,6 +165,7 @@ class IVF:
                 while count != counts[centroid_idx]:
                     chunk = file.read(chunk_size)
                     id, *vector = struct.unpack('I' + 'f' * dim, chunk)
+
                     if pq is not None:
                         distances.append(self.pq_distance(
                             np.array(query), np.array(vector), dim))
@@ -181,7 +182,7 @@ class IVF:
 
         return [vector[1] for vector in nearest_vectors[:k]]
 
-    def run_queries(self, np_rows, top_k, num_runs, algo, dim=D, centroids=[], index=[], pq: PQ = None):
+    def run_queries(self, np_rows, top_k, num_runs, algo, dim=D, index=[], pq: PQ = None):
         results = []
         for _ in range(num_runs):
             query = np.random.random((1, D))
@@ -192,9 +193,10 @@ class IVF:
                 _, I = index.search(query, top_k)
                 db_ids = I[0]
             elif algo == "ivf":
-                db_ids = self.search(query, top_k, centroids)
+                db_ids = self.search(query, top_k)
             else:  # IVF_PQ
-                db_ids = self.search(query, top_k, centroids, pq=pq, dim=dim)
+                db_ids = self.search(
+                    query, top_k, pq=pq, dim=dim)
             toc = time.time()
             run_time = toc - tic
 
@@ -230,27 +232,27 @@ class IVF:
     def run_ivf(self, option, top_k=K, num_runs=RUNS):
         if option == "build":
             self.generate_vectors()
-            vectors = read_data()
-            self.build_index(vectors)
+            self.vectors = read_data()
+            self.build_index()
         else:
-            vectors = read_data()
-            centroids = self.load_centroids()
-            res = self.run_queries(vectors, top_k=top_k, num_runs=num_runs,
-                                   algo="ivf", centroids=centroids)
+            self.vectors = read_data()
+            self.centroids = self.load_centroids()
+            res = self.run_queries(self.vectors, top_k=top_k, num_runs=num_runs,
+                                   algo="ivf")
             print(eval(res))
 
     def run_ivf_pq(self, top_k=K, num_runs=RUNS):
         self.generate_vectors()
-        vectors = read_data()
+        self.vectors = read_data()
         new_dim = 35
         pq = PQ(20, new_dim, self.dim)
-        pq.train(vectors)
-        self.build_index(vectors, True, pq=pq)
+        pq.train(self.vectors)
+        self.build_index(self.vectors, True, pq=pq)
 
         # Search
-        centroids = self.load_centroids()
-        res = self.run_queries(vectors, top_k=top_k, num_runs=num_runs,
-                               algo="ivf_pq", centroids=centroids, dim=new_dim, pq=pq)
+        self.centroids = self.load_centroids()
+        res = self.run_queries(self.vectors, top_k=top_k, num_runs=num_runs,
+                               algo="ivf_pq", dim=new_dim, pq=pq)
         print(eval(res))
 
     def run_ivf_pq_faiss(self, top_k=K, num_runs=RUNS):
@@ -288,4 +290,4 @@ if __name__ == '__main__':
     # ivf.run_ivf_faiss()
     # ivf.run_ivf_pq()
     # ivf.run_ivf_pq_faiss()
-    # ivf.run_hnsw_faiss())
+    # ivf.run_hnsw_faiss()
