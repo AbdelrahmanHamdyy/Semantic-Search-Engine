@@ -10,9 +10,15 @@ from worst_case_implementation import *
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-N = 100000  # Size of the data
-CLUSTERS = 4 * int(math.sqrt(N))  # Number of clusters
-P = CLUSTERS // 5  # Probing count
+N = 1000000  # Size of the data
+
+# 100k
+# CLUSTERS = 4 * int(math.sqrt(N))  # Number of clusters
+# P = CLUSTERS // 5  # Probing count
+
+# 1M
+CLUSTERS = 500
+P = 100
 D = 70  # Vector Dimension
 
 K = 5  # TOP_K
@@ -107,7 +113,10 @@ class IVF:
         return centroids
 
     def build_index(self, vectors, quantize=False, pq: PQ = None):
-        centroids = run_kmeans(vectors, k=self.n_clusters)
+        centroids = run_kmeans_minibatch(vectors, k=self.n_clusters)
+        # centroids = run_kmeans2(vectors, k=self.n_clusters)
+        # centroids = run_kmeans(vectors, k=self.n_clusters)
+
         centroids_dict, index = self.generate_ivf(
             vectors, centroids, quantize, pq)
 
