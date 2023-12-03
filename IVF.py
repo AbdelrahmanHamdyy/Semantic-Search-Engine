@@ -1,12 +1,21 @@
 import numpy as np
-import pickle
 import bisect
+import faiss
+import struct
 from main import *
+from PQ import *
 from kmeans import *
 from evaluation import *
 from worst_case_implementation import *
-from sklearn.metrics.pairwise import cosine_similarity
-import faiss
+
+
+N = 1000000  # Size of the data
+D = 70  # Vector Dimension
+K = 5  # TOP_K
+RUNS = 10  # Number of Runs
+
+CLUSTERS = 50  # Number of clusters
+P = 10  # Probing count
 
 
 class Node:
@@ -15,133 +24,274 @@ class Node:
         self.data = data
 
 
-# Function to calculate Euclidean distance between two vectors
-def euclidean_distance(vec1, vec2):
-    return np.linalg.norm(vec1 - vec2)
+class IVF:
+    def __init__(self, data_size, n_clusters, n_probe, dim):
+        self.data_size = data_size
+        self.n_clusters = n_clusters
+        self.n_probe = n_probe
+        self.dim = dim
+        self.index_file_path = "index.bin"
+        self.centroids_file_path = "centroids.bin"
+        self.centroids = None
+        self.vectors = None
 
+    def calc_similarity(self, vec1, vec2):
+        dot_product = np.dot(vec1, vec2)
+        norm_vec1 = np.linalg.norm(vec1)
+        norm_vec2 = np.linalg.norm(vec2)
+        cosine_similarity = dot_product / (norm_vec1 * norm_vec2)
+        return cosine_similarity
 
-def generate_ivf(vectors, centroids):
-    inverted_index = {tuple(centroid): [] for centroid in centroids}
+    def generate_ivf(self, quantize=False, pq: PQ = None):
+        inverted_index = {i: [] for i in range(len(self.centroids))}
+        centroids_dict = {i: [self.centroids[i], 0, 0]
+                          for i in range(len(self.centroids))}
 
-    # Assign each vector to the nearest centroid
-    similarities = cosine_similarity(vectors, centroids)
-    assigned_centroids = np.argmax(similarities, axis=1)
+        # Assign each vector to the nearest centroid
+        similarities = []
+        for vector in self.vectors:
+            vec_nearest = []
+            for centroid in self.centroids:
+                vec_nearest.append(self.calc_similarity(vector, centroid))
+            similarities.append(vec_nearest)
+        assigned_centroids = np.argmax(similarities, axis=1)
 
-    for vector_id, centroid_idx in enumerate(assigned_centroids):
-        inverted_index[tuple(centroids[centroid_idx])].append(
-            Node(vector_id, vectors[vector_id]))
+        for vector_id, centroid_idx in enumerate(assigned_centroids):
+            centroids_dict[centroid_idx][1] += 1
+            vec = pq.get_compressed_data(
+                self.vectors[vector_id]) if quantize else self.vectors[vector_id]
+            inverted_index[centroid_idx].append(Node(vector_id, vec))
 
-    return inverted_index
+        # Sort centroids_dict and inverted_index
+        centroids_dict = dict(sorted(centroids_dict.items()))
+        inverted_index = dict(sorted(inverted_index.items()))
 
+        sum = 0
+        for _, val in centroids_dict.items():
+            val[2] = sum
+            sum += val[1]
 
-def save_index(index, path='index.pkl'):
-    with open(path, 'wb') as file:
-        pickle.dump(index, file)
+        return centroids_dict, inverted_index
 
+    def save_index(self, index):
+        with open(self.index_file_path, 'wb') as file:
+            for vectors in index:
+                for node in vectors:
+                    id_size = 'i'
+                    vec_size = 'f' * len(node.data)
 
-def load_index(path='index.pkl'):
-    with open(path, 'rb') as file:
-        return pickle.load(file)
+                    binary_data = struct.pack(
+                        id_size + vec_size, node.id, *node.data)
 
+                    file.write(binary_data)
 
-def build_index(vectors, num_of_clusters):
-    centroids = run_kmeans(vectors, k=num_of_clusters)
-    inverted_index = generate_ivf(vectors, centroids)
-    save_index(inverted_index)
+    def save_centroids(self, centroids):
+        with open(self.centroids_file_path, 'wb') as file:
+            for centroid in centroids:
+                vec_size = 'f' * len(centroid[0])
+                count_size = 'i'
+                prev_count_size = 'i'
 
+                binary_data = struct.pack(
+                    vec_size + count_size + prev_count_size, *centroid[0], centroid[1], centroid[2])
 
-def search(query, k, centroids, inverted_index, nprobe):
-    # Find the nearest centroid to the query
-    similarities = cosine_similarity(query, centroids)
-    nearest_centroid_indices = np.argsort(similarities)[0][-nprobe:]
+                file.write(binary_data)
 
-    # Search in each of the nearest centroids
-    nearest_vectors = []
-    for centroid_idx in nearest_centroid_indices:
-        centroid = centroids[centroid_idx]
+    def load_centroids(self):
+        vec_size = struct.calcsize('f') * self.dim
+        count_size = struct.calcsize('i')
+        prev_count_size = struct.calcsize('i')
+        chunk_size = vec_size + count_size + prev_count_size
 
-        # Find vectors in the current centroid
-        centroid_vectors = inverted_index[centroid]
+        centroids = []
+        with open(self.centroids_file_path, "rb") as file:
+            while chunk := file.read(chunk_size):
+                vec_size = 'f' * self.dim
+                count_size = 'i'
+                prev_count_size = 'i'
+                # Unpacking the binary data
+                *values, x, y = struct.unpack(vec_size +
+                                              count_size + prev_count_size, chunk)
+                centroids.append([values, x, y])
 
-        # Calculate distances to the query
-        distances = [euclidean_distance(vector.data, query)
-                    for vector in centroid_vectors]
+        return centroids
 
-        # Select top k vectors in the current centroid
-        sorted_distances = np.argsort(distances)[:k]
-        for idx in sorted_distances:
-            node = centroid_vectors[idx]
-            bisect.insort(nearest_vectors, (distances[idx], node.id))
+    def build_index(self, quantize=False, pq: PQ = None):
+        # self.centroids = run_kmeans_minibatch(self.vectors, k=self.n_clusters)
+        self.centroids = run_kmeans2(self.vectors, k=self.n_clusters)
+        # self.centroids = run_kmeans(self.vectors, k=self.n_clusters)
 
-    # Return ids of these vectors
-    result = [vector[1] for vector in nearest_vectors[:k]]
+        centroids_dict, index = self.generate_ivf(quantize, pq)
 
-    return result
+        centroids_dict = list(centroids_dict.values())
+        index = list(index.values())
 
+        self.save_centroids(centroids_dict)
+        self.save_index(index)
 
-def run_queries(np_rows, top_k, num_runs, algo, centroids=[], index=[]):
-    results = []
-    for _ in range(num_runs):
-        query = np.random.random((1, 70))
-        db_ids = []
+    def pq_distance(self, query, target, subvector_size):
+        # Split the vectors into subvectors
+        query_subvectors = np.split(query, len(query) // subvector_size)
+        target_subvectors = np.split(target, len(target) // subvector_size)
 
-        tic = time.time()
-        if algo == "faiss":
-            D, I = index.search(query, top_k)
-            db_ids = I[0]
+        # Calculate the Product Quantization Distance (PQD)
+        pqd = sum(np.linalg.norm(q - t)
+                  for q, t in zip(query_subvectors, target_subvectors))
+
+        return pqd
+
+    def search(self, query, k, dim=D, pq: PQ = None):
+        counts, prev_counts, centroid_vectors = [], [], []
+        for centroid_obj in self.centroids:
+            centroid_vectors.append(centroid_obj[0])
+            counts.append(centroid_obj[1])
+            prev_counts.append(centroid_obj[2])
+
+        similarities = []
+        for centroid in centroid_vectors:
+            similarities.append(self.calc_similarity(query[0], centroid))
+        nearest_centroid_indices = np.argsort(similarities)[-self.n_probe:]
+
+        if pq is not None:
+            query = pq.get_compressed_data(query)
+
+        # Search in each of the nearest centroids
+        nearest_vectors = []
+        for centroid_idx in nearest_centroid_indices:
+            count = 0
+            distances = []
+            ids = []
+            chunk_size = struct.calcsize('i') + (struct.calcsize('f') * dim)
+            with open('index.bin', 'rb') as file:
+                file.seek(prev_counts[centroid_idx] * chunk_size)
+
+                # Reading records after the jump
+                while count != counts[centroid_idx]:
+                    chunk = file.read(chunk_size)
+                    id, *vector = struct.unpack('I' + 'f' * dim, chunk)
+
+                    if pq is not None:
+                        distances.append(self.pq_distance(
+                            np.array(query), np.array(vector), dim))
+                    else:
+                        distances.append(
+                            self.calc_similarity(vector, query[0]))
+                    ids.append(id)
+
+                    count += 1
+
+            sorted_distances = np.argsort(distances)[-k:]
+            for idx in sorted_distances:
+                bisect.insort(nearest_vectors, (distances[idx], ids[idx]))
+
+        return [vector[1] for vector in nearest_vectors[-k:]]
+
+    def run_queries(self, np_rows, top_k, num_runs, algo, dim=D, index=[], pq: PQ = None):
+        results = []
+        for _ in range(num_runs):
+            query = np.random.random((1, D))
+            db_ids = []
+
+            tic = time.time()
+            if algo == "faiss":
+                _, I = index.search(query, top_k)
+                db_ids = I[0]
+            elif algo == "ivf":
+                db_ids = self.search(query, top_k)
+            else:  # IVF_PQ
+                db_ids = self.search(
+                    query, top_k, pq=pq, dim=dim)
+            toc = time.time()
+            run_time = toc - tic
+
+            tic = time.time()
+            actual_ids = np.argsort(np_rows.dot(query.T).T / (np.linalg.norm(
+                np_rows, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
+            toc = time.time()
+            np_run_time = toc - tic
+
+            results.append(Result(run_time, top_k, db_ids, actual_ids))
+        return results
+
+    def generate_vectors(self):
+        db = VecDBWorst()
+        records_np = np.random.random((self.data_size, self.dim))
+        records_dict = [{"id": i, "embed": list(row)}
+                        for i, row in enumerate(records_np)]
+        db.insert_records(records_dict)
+
+    def run_ivf_faiss(self, top_k=K, num_runs=RUNS):
+        data = np.random.random((self.data_size, self.dim))
+        nlist = self.n_clusters
+        quantizer = faiss.IndexFlatL2(self.dim)
+        index = faiss.IndexIVFFlat(quantizer, self.dim, nlist)
+        index.train(data)
+        index.add(data)
+        index.nprobe = self.n_probe
+
+        results = self.run_queries(data, top_k=top_k, num_runs=num_runs,
+                                   algo="faiss", index=index)
+        print(eval(results))
+
+    def run_ivf(self, option, top_k=K, num_runs=RUNS):
+        if option == "build":
+            self.generate_vectors()
+            self.vectors = read_data()
+            self.build_index()
         else:
-            db_ids = search(query, top_k, centroids, index, nprobe=10)
-        toc = time.time()
-        run_time = toc - tic
+            self.vectors = read_data()
+            self.centroids = self.load_centroids()
+            res = self.run_queries(self.vectors, top_k=top_k, num_runs=num_runs,
+                                   algo="ivf")
+            print(eval(res))
 
-        tic = time.time()
-        actual_ids = np.argsort(np_rows.dot(query.T).T / (np.linalg.norm(
-            np_rows, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
-        toc = time.time()
-        np_run_time = toc - tic
+    def run_ivf_pq(self, top_k=K, num_runs=RUNS):
+        self.generate_vectors()
+        self.vectors = read_data()
+        new_dim = 35
+        pq = PQ(20, new_dim, self.dim)
+        pq.train(self.vectors)
+        self.build_index(self.vectors, True, pq=pq)
 
-        results.append(Result(run_time, top_k, db_ids, actual_ids))
-    return results
-
-
-def ivf_faiss():
-    data = np.random.random((1000000, 70))
-    d = 70
-    nlist = 50
-    quantizer = faiss.IndexFlatL2(d)
-    index = faiss.IndexIVFFlat(quantizer, d, nlist)
-    index.train(data)
-    index.add(data)
-    index.nprobe = 10
-
-    results = run_queries(data, top_k=5, num_runs=10,
-                        algo="faiss", index=index)
-    print(eval(results))
-
-
-def generate_vectors():
-    db = VecDBWorst()
-    records_np = np.random.random((1000000, 70))
-    records_dict = [{"id": i, "embed": list(row)}
-                    for i, row in enumerate(records_np)]
-    db.insert_records(records_dict)
-
-
-def ivf(option="build"):
-    if option == "build":
-        generate_vectors()
-        vectors = read_data()
-        build_index(vectors, num_of_clusters=50)
-    else:
-        vectors = read_data()
-        index = load_index()
-        centroids = list(index.keys())
-        res = run_queries(vectors, top_k=5, num_runs=10,
-                          algo="ivf", centroids=centroids, index=index)
+        # Search
+        self.centroids = self.load_centroids()
+        res = self.run_queries(self.vectors, top_k=top_k, num_runs=num_runs,
+                               algo="ivf_pq", dim=new_dim, pq=pq)
         print(eval(res))
+
+    def run_ivf_pq_faiss(self, top_k=K, num_runs=RUNS):
+        self.generate_vectors()
+        data = read_data()
+
+        m = 14
+        nbits = 5
+
+        # Train the IVF with PQ index
+        index = faiss.IndexIVFPQ(faiss.IndexFlatL2(
+            self.dim), self.dim, self.n_clusters, m, nbits)
+        index.train(data)
+        index.add(data)
+        results = self.run_queries(data, top_k=top_k, num_runs=num_runs,
+                                   algo="faiss", index=index)
+        print(eval(results))
+
+    def run_hnsw_faiss(self, dim, top_k=K, num_runs=RUNS, data=None):
+        if data is None:
+            data = np.random.random(
+                (self.data_size, self.dim)).astype('float32')
+        n_clusters = 64
+        index = faiss.IndexHNSWFlat(dim, n_clusters, faiss.METRIC_L2)
+        index.add(data)
+        results = self.run_queries(data, top_k=top_k, num_runs=num_runs,
+                                   algo="faiss", index=index)
+        print(eval(results))
 
 
 if __name__ == '__main__':
-    ivf("build")
-    # ivf("search")
-    # ivf_faiss()
+    ivf = IVF(N, CLUSTERS, P, D)
+    ivf.run_ivf("build")
+    ivf.run_ivf("search")
+    # ivf.run_ivf_faiss()
+    # ivf.run_ivf_pq()
+    # ivf.run_ivf_pq_faiss()
+    # ivf.run_hnsw_faiss()
