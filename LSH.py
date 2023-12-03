@@ -63,9 +63,10 @@ class LSH:
         candidates = [(ix, d_func(query_vector, dict(ix)["embed"]))
                     for ix in candidates]
         candidates = sorted(candidates, key=lambda x: x[1])
-        result = []
-        for i in range(num_results):
-            result.append(dict(candidates[i][0])["id"])
+        # result = []
+        # for i in range(num_results):
+        #     result.append(dict(candidates[i][0])["id"])
+        result = [dict(candidate[0])["id"] for candidate in candidates[:num_results]]
         return result
 
     @staticmethod

@@ -1,3 +1,4 @@
+import pandas as pd
 import numpy as np
 from worst_case_implementation import VecDBWorst
 import time
@@ -61,8 +62,11 @@ def eval(results: List[Result]):
 
 
 if __name__ == "__main__":
-    db = VecDBWorst()
+    # db = LSH(6,70,2)
+    db = LSH(6, 70, 2)
     records_np = np.random.random((10000, 70))
+    # df = pd.read_csv("./saved_db.csv")
+    # records_np=df.values
     records_dict = [{"id": i, "embed": list(row)}
                     for i, row in enumerate(records_np)]
     _len = len(records_np)
@@ -70,13 +74,13 @@ if __name__ == "__main__":
     res = run_queries(db, records_np, 5, 10)
     print(eval(res))
 
-    # records_np = np.concatenate([records_np, np.random.random((90000, 70))])
-    # records_dict = [
-    #     {"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    # _len = len(records_np)
-    # db.insert_records(records_dict)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(eval(res))
+    records_np = np.concatenate([records_np, np.random.random((90000, 70))])
+    records_dict = [
+        {"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
+    _len = len(records_np)
+    db.insert_records(records_dict)
+    res = run_queries(db, records_np, 5, 10)
+    print(eval(res))
 
     # records_np = np.concatenate([records_np, np.random.random((900000, 70))])
     # records_dict = [{"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
