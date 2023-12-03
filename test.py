@@ -1,18 +1,19 @@
-list_of_dicts = [
-    {'id': 0, 'embed': [0.4937723169626643, 0.43335433190404127, 0.8187348585930836, 0.34622322564002284, 0.7649056106341516, 0.6889160617701864, 0.27486782593025993]},
-    {'id': 1, 'embed': [0.12, 0.56, 0.78, 0.23, 0.98, 0.45, 0.67]},
-    {'id': 2, 'embed': [0.77, 0.34, 0.21, 0.89, 0.11, 0.56, 0.34]}
-]
+import numpy as np
 
-set_of_frozensets = set()
+def generate_random_line(input_dim):
+    # Generate random coefficients for a hyperplane (line in 2D, plane in 3D, etc.)
+    coefficients = np.random.randn(input_dim)
+    return coefficients / np.linalg.norm(coefficients)  # Normalize to unit vector
 
-for dictionary in list_of_dicts:
-    # Convert the 'embed' list to a tuple
-    embed_tuple = tuple(dictionary['embed'])
-    frozenset_dict = frozenset([('id', dictionary['id']), ('embed', embed_tuple)])
-    set_of_frozensets.add(frozenset_dict)
+def above_or_below_line(vector, line):
+    # Check if the vector is above (output 1) or below (output 0) the line
+    return int(np.dot(vector, line) > 0)
 
-# Accessing elements in the set
-for frozenset_item in set_of_frozensets:
-    dict_item = dict(frozenset_item)
-    print(f"ID: {dict_item['id']}, Embed: {dict_item['embed']}")
+# Example usage
+input_dim = 3  # Adjust the dimensionality as needed
+random_line = generate_random_line(input_dim)
+print("Random Line Coefficients:", random_line)
+
+vector_to_check = np.random.randn(input_dim)
+result = above_or_below_line(vector_to_check, random_line)
+print("Vector is above the line (1) or below (0):", result)

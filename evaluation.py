@@ -19,16 +19,17 @@ class Result:
 def run_queries(db, np_rows, top_k, num_runs):
     results = []
     for _ in range(num_runs):
+        print("ME")
         query = np.random.random((1, 70))
 
         tic = time.time()
         db_ids = db.retrive(query, top_k)
         toc = time.time()
         run_time = toc - tic
-
+        print("Kasab")
         tic = time.time()
         actual_ids = np.argsort(np_rows.dot(query.T).T / (np.linalg.norm(
-            np_rows, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
+            np_rows, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()
         toc = time.time()
         np_run_time = toc - tic
 
@@ -37,6 +38,7 @@ def run_queries(db, np_rows, top_k, num_runs):
 
 
 def eval(results: List[Result]):
+    print("eval")
     # scores are negative. So getting 0 is the best score.
     scores = []
     run_time = []
@@ -55,15 +57,32 @@ def eval(results: List[Result]):
             except:
                 score -= len(res.actual_ids)
         scores.append(score)
-
-    return sum(scores) / len(scores), sum(run_time) / len(run_time)
+    acc = sum(1 for num in scores if num == 0)
+    return sum(scores) / len(scores), sum(run_time) / len(run_time), acc/len(scores)
 
 
 if __name__ == "__main__":
-    db = LSH(6,70,5)
-    # db = LSH(20,70,12)
+    # db = LSH(15 or 25 ,70,1) # --> 1M  () 18sec
+    # db = LSH(12 ,70,2) # --> 1M  (-160)
+    # db = LSH(11 ,70,15) # --> 1M (-27.6)  15.1  0.5
+    # db = LSH(13,70,15) # --> 1M  (-23.4)  10.2  0.5
+    # db = LSH(9,70,12) # --> 1M   (-63)    15.1  0.6
+    # db = LSH(12 ,70,15) # --> 1M (-8.7)   11.3  0.8
+    # db = LSH(15 ,70,15) # --> 1M (-29.0)  7.1   0.5
+    # db = LSH(15,70,20) # --> 1M  (-11.0)  7.6   0.7
+    # db = LSH(9 ,70,20) # --> 1M  (-22.4)  17.4  0.5
+    # db = LSH(12,70,15) # --> 1M  (-62.5)  15.79 0.5
+    # db = LSH(12,70,20) # --> 1M  (-17.4)  12.5  0.6
+    
+    # db = LSH(6,70,15) # --> 1M  (0.0)  50  1.0
+    # db = LSH(6,70,10) # --> 1M  (-7.2)  46.04  0.9
+    # db = LSH(2,70,2)  # --> 10K  (0.0)   0.34  1.0
+    # db = LSH(5,70,6) # --> 100K  (0.0)   3.7   1.0
+    # db = LSH(6,70,6) # --> 100K  (0.0)  4.2   1.0
+
+    db = LSH(7,70,10)
     # db = VecDBWorst()
-    records_np = np.random.random((10000, 70))
+    records_np = np.random.random((1000000, 70))
     # df = pd.read_csv("./saved_db.csv")
     # records_np=df.values
     records_dict = [{"id": i, "embed": list(row)}

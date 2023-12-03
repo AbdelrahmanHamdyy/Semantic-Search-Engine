@@ -5,6 +5,7 @@ import numpy as np
 from collections import defaultdict
 from storage import storage
 import pickle
+import heapq
 
 class LSH:
     # hash_size: the length of the resulting binary hash code
@@ -22,7 +23,7 @@ class LSH:
                             for _ in range(self.num_hashtables)]
 
     def _generate_uniform_planes(self):
-        return np.random.random((self.hash_size, self.input_dim))
+        return np.random.randn(self.hash_size, self.input_dim)
     
     # initialize hash tables, each hash table is a dictionary
     def _init_hashtables(self):
@@ -34,25 +35,42 @@ class LSH:
         projections = np.dot(planes, input_point.T)
         return "".join(['1' if i > 0 else '0' for i in projections])
 
+
     def insert_records(self, data):
         for input_point in data:
             for i, table in enumerate(self.hash_tables):
                 h = self._hash(self.uniform_planes[i], input_point["embed"])
                 table.append_val(h, input_point)
-        self.save_index(self.hash_tables)
+        # for i, table in enumerate(self.hash_tables):
+        # # Precompute hash values for all input points for the current table
+        #     hash_values = [self._hash(self.uniform_planes[i], point["embed"]) for point in data]
+        #     for j, input_point in enumerate(data):
+        #         h = hash_values[j]  # Use the precomputed hash value
+        #         # Append the record to the table
+        #         table.append_val(h, input_point)
+
+        # for i, table in enumerate(self.hash_tables):
+        #     print("-----------------")
+        #     print(table.keys())
+        # for i, table in enumerate(self.hash_tables):
+        #     hashes = [self._hash(self.uniform_planes[i], point["embed"]) for point in data]
+        #     table.append_vals(hashes, data)
+
+        # self.save_index(self.hash_tables)
+
 
     def save_index(self,index, path='indexLSH.pkl'):
         with open(path, 'wb') as file:
             pickle.dump(index, file)
-    
+
     def load_index(self,path='indexLSH.pkl'):
         with open(path, 'rb') as file:
             return pickle.load(file)
     def retrive(self, query_vector, num_results=5):
-        hash_tables = self.load_index()
+        # hash_tables = self.load_index()
         candidates = set()
-        d_func = LSH.euclidean_dist_square
-        for i, table in enumerate(hash_tables):
+        d_func = LSH._cal_score
+        for i, table in enumerate(self.hash_tables):
             binary_hash = self._hash(self.uniform_planes[i], query_vector)
             tableList= table.get_list(binary_hash)
             for ele in tableList:
@@ -62,17 +80,31 @@ class LSH:
         # rank candidates by distance function
         candidates = [(ix, d_func(query_vector, dict(ix)["embed"]))
                     for ix in candidates]
-        candidates = sorted(candidates, key=lambda x: x[1])
+        # candidates = sorted(candidates, key=lambda x: x[1])
+        # result = [dict(candidate[0])["id"] for candidate in candidates[:num_results]]
+        result = heapq.nsmallest(num_results, candidates, key=lambda x: x[1])
+        result = [dict(candidate[0])["id"] for candidate in result]
+
         # result = []
         # for i in range(num_results):
         #     result.append(dict(candidates[i][0])["id"])
-        result = [dict(candidate[0])["id"] for candidate in candidates[:num_results]]
+        # candidates = [(ix, d_func(query_vector, ix["embed"])) for ix in candidates]
+        # candidates = sorted(candidates, key=lambda x: x[1])
+        # result = [candidate[0]["id"] for candidate in candidates[:num_results]]
+
         return result
 
     @staticmethod
     def euclidean_dist_square(x, y):
         diff = x[0] - y
         return np.dot(diff, diff)
+    @staticmethod
+    def _cal_score(vec1, vec2):
+        dot_product = np.dot(vec1, vec2)
+        norm_vec1 = np.linalg.norm(vec1)
+        norm_vec2 = np.linalg.norm(vec2)
+        cosine_similarity = dot_product / (norm_vec1 * norm_vec2)
+        return cosine_similarity
 
 def lsh_faiss():
     data = np.random.random((10000, 70))
