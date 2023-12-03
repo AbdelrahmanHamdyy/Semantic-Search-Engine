@@ -80,10 +80,10 @@ class LSH:
         # rank candidates by distance function
         candidates = [(ix, d_func(query_vector, dict(ix)["embed"]))
                     for ix in candidates]
-        # candidates = sorted(candidates, key=lambda x: x[1])
-        # result = [dict(candidate[0])["id"] for candidate in candidates[:num_results]]
-        result = heapq.nsmallest(num_results, candidates, key=lambda x: x[1])
-        result = [dict(candidate[0])["id"] for candidate in result]
+        candidates = sorted(candidates, key=lambda x: x[1])
+        result = [dict(candidate[0])["id"] for candidate in candidates[-num_results:]]
+        # result = heapq.nsmallest(num_results, candidates, key=lambda x: x[1])
+        # result = [dict(candidate[0])["id"] for candidate in result]
 
         # result = []
         # for i in range(num_results):

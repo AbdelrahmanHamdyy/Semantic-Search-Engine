@@ -28,8 +28,7 @@ def run_queries(db, np_rows, top_k, num_runs):
         run_time = toc - tic
         print("Kasab")
         tic = time.time()
-        actual_ids = np.argsort(np_rows.dot(query.T).T / (np.linalg.norm(
-            np_rows, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()
+        actual_ids = np.argsort(np_rows.dot(query.T).T / (np.linalg.norm(np_rows, axis=1) * np.linalg.norm(query)), axis= 1).squeeze().tolist()[::-1]
         toc = time.time()
         np_run_time = toc - tic
 
@@ -80,9 +79,9 @@ if __name__ == "__main__":
     # db = LSH(5,70,6) # --> 100K  (0.0)   3.7   1.0
     # db = LSH(6,70,6) # --> 100K  (0.0)  4.2   1.0
 
-    db = LSH(7,70,10)
+    db = LSH(5,70,5)
     # db = VecDBWorst()
-    records_np = np.random.random((1000000, 70))
+    records_np = np.random.random((10000, 70))
     # df = pd.read_csv("./saved_db.csv")
     # records_np=df.values
     records_dict = [{"id": i, "embed": list(row)}
