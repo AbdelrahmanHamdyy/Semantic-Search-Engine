@@ -261,9 +261,21 @@ def ivf_pq_faiss():
     print(eval(results))
 
 
+def hnsw_faiss(data=None, dim=D):
+    if data is None:
+        data = np.random.random((N, dim)).astype('float32')
+    n_clusters = 64
+    index = faiss.IndexHNSWFlat(dim, n_clusters, faiss.METRIC_L2)
+    index.add(data)
+    results = run_queries(data, top_k=K, num_runs=RUNS,
+                          algo="faiss", index=index)
+    print(eval(results))
+
+
 if __name__ == '__main__':
-    # ivf("build")
-    # ivf("search")
+    ivf("build")
+    ivf("search")
     # ivf_faiss()
     # ivf_pq()
-    ivf_pq_faiss()
+    # ivf_pq_faiss()
+    # hnsw_faiss()
