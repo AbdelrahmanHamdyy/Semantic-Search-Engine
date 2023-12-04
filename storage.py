@@ -58,6 +58,6 @@ class InMemoryStorage(BaseStorage):
 
     def append_val(self, key, val):
         self.storage.setdefault(key, []).append(val)
- 
+
     def get_list(self, key):
         return self.storage.get(key, [])
