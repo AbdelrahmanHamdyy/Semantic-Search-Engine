@@ -73,15 +73,19 @@ if __name__ == "__main__":
     # db = LSH(12,70,15) # --> 1M  (-62.5)  15.79 0.5
     # db = LSH(12,70,20) # --> 1M  (-17.4)  12.5  0.6
     
+    # db = LSH(16,70,17) # --> 1M  (0.0) 5.7
+    # db = LSH(16,70,16) # --> 1M  (-1.6) 7.8
+    # db = LSH(16,70,15) # --> 1M  (-1.6) 8.2
+    # db = LSH(15,70,15) # --> 1M  (0.0)  12.6
     # db = LSH(6,70,15) # --> 1M  (0.0)  50  1.0
     # db = LSH(6,70,10) # --> 1M  (-7.2)  46.04  0.9
     # db = LSH(2,70,2)  # --> 10K  (0.0)   0.34  1.0
-    # db = LSH(5,70,6) # --> 100K  (0.0)   3.7   1.0
-    # db = LSH(6,70,6) # --> 100K  (0.0)  4.2   1.0
+    # db = LSH(5,70,6) # --> 100K  (0.0)   3.4   1.0
+    # db = LSH(6,70,6) # --> 100K  (0.0)  2.9  1.0
 
-    db = LSH(5,70,5)
+    db = LSH(16,70,17)
     # db = VecDBWorst()
-    records_np = np.random.random((10000, 70))
+    records_np = np.random.random((1000000, 70))
     # df = pd.read_csv("./saved_db.csv")
     # records_np=df.values
     records_dict = [{"id": i, "embed": list(row)}
