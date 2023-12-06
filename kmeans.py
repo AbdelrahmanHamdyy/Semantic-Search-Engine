@@ -5,7 +5,7 @@ from scipy.cluster.vq import kmeans2
 
 def run_kmeans_minibatch(data, k):
     # Create and fit the MiniBatchKMeans model
-    kmeans = MiniBatchKMeans(n_clusters=k, random_state=42)
+    kmeans = MiniBatchKMeans(n_clusters=k, random_state=42, n_init='auto')
     kmeans.fit(data)
 
     # Get the centroids
@@ -21,7 +21,7 @@ def run_kmeans2(data, k):
 
 def run_kmeans(data, k):
     # Create and fit the model
-    kmeans = KMeans(n_clusters=k, random_state=42)
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init='auto')
     kmeans.fit(data)
 
     # Get the centroids
