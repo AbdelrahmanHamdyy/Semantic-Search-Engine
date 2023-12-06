@@ -1,38 +1,29 @@
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.cluster import KMeans
 import numpy as np
-import matplotlib.pyplot as plt
 
-# Generate some random data for demonstration
-np.random.seed(42)
-data_points = np.random.randn(1000, 2)  # 1000 data points in 2D space
+def pca(X, num_components):
+    # Standardize the data
+    X_mean = np.mean(X, axis=0)
+    X_std = X - X_mean
+    covariance_matrix = np.cov(X_std, rowvar=False)
 
-# Specify the number of clusters (you can change this)
-num_clusters = 3
+    # Calculate eigenvalues and eigenvectors
+    eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)
 
-# Create and fit the KMeans model with cosine similarity
-class CosineKMeans(KMeans):
-    def fit(self, X, y=None, sample_weight=None):
-        # Compute cosine similarity matrix
-        similarity_matrix = cosine_similarity(X)
-        return super().fit(similarity_matrix, sample_weight=sample_weight)
+    # Sort eigenvectors based on eigenvalues
+    sorted_indices = np.argsort(eigenvalues)[::-1]
+    top_indices = sorted_indices[:num_components]
+    top_eigenvectors = eigenvectors[:, top_indices]
 
-# Create and fit the CosineKMeans model
-cosine_kmeans = CosineKMeans(n_clusters=num_clusters, random_state=42)
-cosine_kmeans.fit(data_points)
+    # Project the data onto the top eigenvectors
+    principal_components = np.dot(X_std, top_eigenvectors)
 
-# Get cluster assignments and cluster centers
-cluster_assignments = cosine_kmeans.labels_
-cluster_centers = cosine_kmeans.cluster_centers_
+    return principal_components
 
-# Visualize the data and cluster centers
-for i in range(num_clusters):
-    cluster_data = data_points[cluster_assignments == i]
-    plt.scatter(cluster_data[:, 0], cluster_data[:, 1], label=f'Cluster {i}', alpha=0.5)
-    plt.scatter(cluster_centers[i, 0], cluster_centers[i, 1], c=f'C{i}', marker='x', s=200, label=f'Centroid {i}')
-
-plt.title('Cosine Similarity K-means Clustering')
-plt.xlabel('Feature 1')
-plt.ylabel('Feature 2')
-plt.legend()
-plt.show()
+# Example usage:
+# Assuming 'data' is your dataset, and you want to reduce it to 2 principal components
+data = np.random.rand(10, 5)  # 100 samples with 5 features each
+num_components = 2
+result = pca(data, num_components)
+print(data)
+print("Original data shape:", data.shape)
+print("Reduced data shape:", result.shape)
