@@ -71,8 +71,9 @@ class PQ:
         # taking each segment -> and looping over all the centroids in that segment
         for i in range(self.number_of_segments):
             for j in range(self.number_of_clusters):
-                self.table[j][i] = np.linalg.norm(vector_segments[i] - self.centroids[i][j],ord=2, axis=1) ** 2
-    
+                self.table[j][i] = np.linalg.norm(
+                    vector_segments[i] - self.centroids[i][j])
+
     '''
     Get distance between a database vector and the query which we calculated its table before
     '''
@@ -82,13 +83,13 @@ class PQ:
         for i in range(self.number_of_segments):
             sum += pow(self.table[database_vector[i]-1][i], 2)
         return pow(sum, 0.5)
-    
 
-    def get_symm_distance(self,query_vector,database_vector):
-        sum = 0 
+    def get_symm_distance(self, query_vector, database_vector):
+        sum = 0
         for i in range(self.number_of_segments):
-            sum+= np.linalg.norm(self.centroids[i][query_vector[i]-1]-self.centroids[i][database_vector[i]-1]) **2
-        return pow(sum,0.5)
+            sum += np.linalg.norm(self.centroids[i][query_vector[i]-1] -
+                                  self.centroids[i][database_vector[i]-1]) ** 2
+        return pow(sum, 0.5)
 
 
 if __name__ == '__main__':
@@ -107,5 +108,5 @@ if __name__ == '__main__':
         print(training_vector)
         print("Distance")
         print(pq_model.get_symm_distance(
-            database_vector=pq_model.get_compressed_data(training_vector),query_vector=pq_model.get_compressed_data(vector)))
+            database_vector=pq_model.get_compressed_data(training_vector), query_vector=pq_model.get_compressed_data(vector)))
         print("---------------")

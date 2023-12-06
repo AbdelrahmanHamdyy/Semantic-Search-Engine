@@ -62,7 +62,7 @@ def run_ivf_pq_faiss(top_k=K, num_runs=RUNS):
 
     # Train the IVF with PQ index
     index = faiss.IndexIVFPQ(faiss.IndexFlatL2(
-        D), D, n_clusters, m, nbits)
+        D), D, n_clusters, m, nbits, faiss.METRIC_L2)
     index.train(data)
     index.add(data)
     index.nprobe = 10
@@ -73,7 +73,7 @@ def run_ivf_pq_faiss(top_k=K, num_runs=RUNS):
 def run_hnsw_faiss(dim=D, top_k=K, num_runs=RUNS, data=None):
     data = np.random.random((100000, D)).astype('float32')
     n_clusters = 64
-    index = faiss.IndexHNSWFlat(dim, n_clusters, faiss.METRIC_L2)
+    index = faiss.IndexHNSWFlat(dim, n_clusters, faiss.METRIC_INNER_PRODUCT)
     index.add(data)
     results = run_queries(data, top_k, num_runs, index)
     print(eval(results))
@@ -81,3 +81,5 @@ def run_hnsw_faiss(dim=D, top_k=K, num_runs=RUNS, data=None):
 
 if __name__ == '__main__':
     run_ivf_pq_faiss()
+    # run_ivf_faiss()
+    # run_hnsw_faiss()

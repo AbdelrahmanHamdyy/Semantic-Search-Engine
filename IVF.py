@@ -16,14 +16,6 @@ CLUSTERS = 64  # Number of clusters
 P = 10  # Probing count
 
 
-@dataclass
-class Result:
-    run_time: float
-    top_k: int
-    db_ids: List[int]
-    actual_ids: List[int]
-
-
 class Node:
     def __init__(self, id, data):
         self.id = id

@@ -1,9 +1,6 @@
 import numpy as np
-import pandas as pd
 import bisect
-import faiss
 import struct
-import time
 from PQ import *
 from kmeans import *
 from worst_case_implementation import *

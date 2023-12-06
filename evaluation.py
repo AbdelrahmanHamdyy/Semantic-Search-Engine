@@ -83,14 +83,14 @@ if __name__ == "__main__":
     # pq_model = PQ(cluster_bits=5, number_of_segments=14, data_length=70)
     # db.pq = pq_model
 
-    print("100k")
-    records_np = np.concatenate([records_np, np.random.random((90000, 70))])
-    records_dict = [
-        {"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    _len = len(records_np)
-    db.insert_records(records_dict)
-    res = run_queries(db, records_np, 5, 10)
-    print(eval(res))
+    # print("100k")
+    # records_np = np.concatenate([records_np, np.random.random((90000, 70))])
+    # records_dict = [
+    #     {"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
+    # _len = len(records_np)
+    # db.insert_records(records_dict)
+    # res = run_queries(db, records_np, 5, 10)
+    # print(eval(res))
 
     # pq_model = PQ(cluster_bits=5, number_of_segments=14, data_length=70)
     # db.pq = pq_model
