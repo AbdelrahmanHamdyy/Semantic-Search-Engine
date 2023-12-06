@@ -28,7 +28,7 @@ class PQ:
     '''
     Now We should train our estimators before starting any prediction
     '''
-    def train(self,training_data:list):
+    def train(self,training_data):
         assert self.isTrained==False, "Estimators are already Trained"
         assert(training_data.shape[1]== self.data_length), "Training Data must have same size of data length"
         training_data = training_data.reshape(self.number_of_segments, training_data.shape[0], self.segment_size) 
@@ -60,7 +60,7 @@ class PQ:
         #taking each segment -> and looping over all the centroids in that segment
         for i in range(self.number_of_segments):
             for j in range(self.number_of_clusters):
-                self.table[j][i] = np.linalg.norm(vector_segments[i] - self.centroids[i][j])
+                self.table[j][i] = np.linalg.norm(vector_segments[i] - self.centroids[i][j],ord=2, axis=1) ** 2
     
     '''
     Get distance between a database vector and the query which we calculated its table before
