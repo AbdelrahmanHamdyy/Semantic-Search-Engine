@@ -25,7 +25,7 @@ class PQ:
         self.segment_size = self.data_length//self.number_of_segments
         self.isTrained = False
         self.estimators = [MiniBatchKMeans(
-            n_clusters=self.number_of_clusters, random_state=42, n_init='auto') for _ in range(self.number_of_segments)]
+            n_clusters=self.number_of_clusters, random_state=42) for _ in range(self.number_of_segments)]
         # Now We Keep The Centroids of each cluster
         self.centroids = []
         self.table = np.zeros(
@@ -71,14 +71,8 @@ class PQ:
         # taking each segment -> and looping over all the centroids in that segment
         for i in range(self.number_of_segments):
             for j in range(self.number_of_clusters):
-<<<<<<< HEAD
                 self.table[j][i] = np.linalg.norm(vector_segments[i] - self.centroids[i][j],ord=2, axis=1) ** 2
     
-=======
-                self.table[j][i] = np.linalg.norm(
-                    vector_segments[i] - self.centroids[i][j])
-
->>>>>>> aea750662fe1c4f208671f4a5b110c2ff4a3856d
     '''
     Get distance between a database vector and the query which we calculated its table before
     '''
@@ -88,6 +82,13 @@ class PQ:
         for i in range(self.number_of_segments):
             sum += pow(self.table[database_vector[i]-1][i], 2)
         return pow(sum, 0.5)
+    
+
+    def get_symm_distance(self,query_vector,database_vector):
+        sum = 0 
+        for i in range(self.number_of_segments):
+            sum+= np.linalg.norm(self.centroids[i][query_vector[i]-1]-self.centroids[i][database_vector[i]-1]) **2
+        return pow(sum,0.5)
 
 
 if __name__ == '__main__':
@@ -99,14 +100,12 @@ if __name__ == '__main__':
     print(vector)
     print("Compressed Vector :")
     print(pq_model.get_compressed_data(vector))
-    print("-----")
-    pq_model.generate_query_table(vector)
     for training_vector in (training_vectors):
         print("Original Vector: ")
         print(vector)
         print("training Vector: ")
         print(training_vector)
         print("Distance")
-        print(pq_model.get_distance(
-            database_vector=pq_model.get_compressed_data(training_vector)))
+        print(pq_model.get_symm_distance(
+            database_vector=pq_model.get_compressed_data(training_vector),query_vector=pq_model.get_compressed_data(vector)))
         print("---------------")
