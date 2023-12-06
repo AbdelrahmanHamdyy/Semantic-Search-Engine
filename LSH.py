@@ -19,6 +19,7 @@ class LSH:
         self._init_hashtables()
         self.index_file_path = "indexLSH.bin"
         self.hashes_file_path = "hashesLSH.bin"
+        self.vectors_file_path = "vectors.bin"
         self.hashes=[]
     # initialize uniform planes used to generate binary hash codes
     def _init_uniform_planes(self):
@@ -38,21 +39,39 @@ class LSH:
         projections = np.dot(planes, input_point.T)
         return "".join(['1' if i > 0 else '0' for i in projections])
 
-
+    def save_vectors(self, index):
+        with open(self.vectors_file_path, 'wb') as file:
+            for vector in index:
+                id_size = 'i'
+                vec_size = 'f' * len(vector["embed"])
+                binary_data = struct.pack(
+                    id_size + vec_size, vector["id"], *vector["embed"])
+                file.write(binary_data)
+    
     def insert_records(self, data):
-        for input_point in data:
-            for i, table in enumerate(self.hash_tables):
-                h = self._hash(self.uniform_planes[i], input_point["embed"])
-                table.append_val(h, input_point)
+        self.save_vectors(data)
+        chunk_size = struct.calcsize('i') + (struct.calcsize('f') * self.input_dim)
+        with open(self.vectors_file_path, 'rb') as file:
+            # Reading records after the jump
+            while True:
+                chunk = file.read(chunk_size)
+                if not chunk:
+                    break
+                id, *vector = struct.unpack('I' + 'f' * self.input_dim, chunk)
+                input_point = {"id": id, "embed": vector}
+                for i, table in enumerate(self.hash_tables):
+                    h = self._hash(self.uniform_planes[i], input_point["embed"])
+                    input_point["embed"]=tuple(input_point["embed"])
+                    table.append_val(h, frozenset(input_point.items()))
         index=[]
         count=0
         for table in self.hash_tables:
             hashes={}
             for ele in table.keys():
                 hashes[ele]=(len(table.get_list(ele)),count)
-                # hashes.append((ele,len(table.get_list(ele)),count))
                 count+=len(table.get_list(ele))
-                index.extend(table.get_list(ele))
+                my_set_of_frozensets=table.get_list(ele)
+                index.extend([dict(frozenset_item) for frozenset_item in my_set_of_frozensets])
             self.hashes.append(hashes)
         self.save_index(index)
         # self.save_hashes(hashes)

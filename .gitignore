@@ -163,3 +163,4 @@ saved_db.csv
 index.bin
 centroids.bin
 indexLSH.bin
+vectors.bin
