@@ -1,13 +1,17 @@
 import numpy as np
 
+
 def generate_random_line(input_dim):
     # Generate random coefficients for a hyperplane (line in 2D, plane in 3D, etc.)
     coefficients = np.random.randn(input_dim)
-    return coefficients / np.linalg.norm(coefficients)  # Normalize to unit vector
+    # Normalize to unit vector
+    return coefficients / np.linalg.norm(coefficients)
+
 
 def above_or_below_line(vector, line):
     # Check if the vector is above (output 1) or below (output 0) the line
     return int(np.dot(vector, line) > 0)
+
 
 # Example usage
 input_dim = 3  # Adjust the dimensionality as needed

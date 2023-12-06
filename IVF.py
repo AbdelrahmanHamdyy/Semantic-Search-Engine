@@ -1,9 +1,6 @@
 import numpy as np
-import pandas as pd
 import bisect
-import faiss
 import struct
-import time
 from PQ import *
 from kmeans import *
 from worst_case_implementation import *
@@ -37,7 +34,6 @@ class IVF:
     def __init__(self, data_file_path, n_clusters, n_probe):
         self.n_clusters = n_clusters
         self.n_probe = n_probe
-        self.data_size = None
         self.data_file_path = data_file_path
         self.index_file_path = "index.bin"
         self.centroids_file_path = "centroids.bin"
@@ -74,7 +70,7 @@ class IVF:
                 self.vectors.append(vector)
         self.vectors = np.array(self.vectors)
 
-    def generate_ivf(self, quantize=False, pq: PQ = None):
+    def generate_ivf(self):
         for i in range(self.n_clusters):
             self.inverted_index[i] = []
             self.centroids_dict[i] = [self.centroids[i], 0, 0]
@@ -89,8 +85,7 @@ class IVF:
 
         for vector_id, centroid_idx in enumerate(assigned_centroids):
             self.centroids_dict[centroid_idx][1] += 1
-            vec = pq.get_compressed_data(
-                self.vectors[vector_id]) if quantize else self.vectors[vector_id]
+            vec = self.vectors[vector_id]
             self.inverted_index[centroid_idx].append(Node(vector_id, vec))
 
         # Sort centroids_dict and inverted_index
@@ -145,19 +140,16 @@ class IVF:
 
         return centroids
 
-    def build_index(self, quantize=False, pq: PQ = None):
+    def build_index(self):
         self.read_data()
         self.centroids = run_kmeans_minibatch(self.vectors, k=self.n_clusters)
 
-        self.generate_ivf(quantize, pq)
+        self.generate_ivf()
 
         self.save_centroids()
         self.save_index()
 
-    def pq_distance(self, vec1, vec2):
-        pass
-
-    def retrive(self, query, k, dim=D, pq: PQ = None):
+    def retrive(self, query, k):
         centroids_list = self.load_centroids()
         centroid_vectors, counts, prev_counts = zip(*centroids_list)
 
@@ -165,9 +157,6 @@ class IVF:
             query[0], centroid) for centroid in centroid_vectors]
 
         nearest_centroid_indices = np.argsort(similarities)[-self.n_probe:]
-
-        if pq is not None:
-            query = pq.get_compressed_data(query)
 
         # Search in each of the nearest centroids
         nearest_vectors = []
@@ -177,19 +166,15 @@ class IVF:
                 distances = []
                 ids = []
                 chunk_size = struct.calcsize(
-                    'i') + (struct.calcsize('f') * dim)
+                    'i') + (struct.calcsize('f') * D)
                 file.seek(prev_counts[centroid_idx] * chunk_size)
 
                 # Reading records after the jump
                 while count != counts[centroid_idx]:
                     chunk = file.read(chunk_size)
-                    id, *vector = struct.unpack('i' + 'f' * dim, chunk)
+                    id, *vector = struct.unpack('i' + 'f' * D, chunk)
 
-                    if pq is not None:
-                        distances.append(self.pq_distance(query, vector))
-                    else:
-                        distances.append(
-                            self.calc_similarity(vector, query[0]))
+                    distances.append(self.calc_similarity(vector, query[0]))
                     ids.append(id)
 
                     count += 1
@@ -199,90 +184,3 @@ class IVF:
                     bisect.insort(nearest_vectors, (distances[idx], ids[idx]))
 
         return [vector[1] for vector in nearest_vectors[-k:]]
-
-    def run_queries(self, np_rows, top_k, num_runs, algo, dim=D, centroids=[], index=[], pq: PQ = None):
-        results = []
-        for _ in range(num_runs):
-            query = np.random.random((1, D))
-            db_ids = []
-
-            tic = time.time()
-            if algo == "faiss":
-                _, I = index.search(query, top_k)
-                db_ids = I[0]
-            elif algo == "ivf":
-                db_ids = self.search(query, top_k)
-            else:  # IVF_PQ
-                db_ids = self.search(query, top_k, pq=pq, dim=dim)
-            toc = time.time()
-            run_time = toc - tic
-
-            tic = time.time()
-            actual_ids = np.argsort(np_rows.dot(query.T).T / (np.linalg.norm(
-                np_rows, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
-            toc = time.time()
-            np_run_time = toc - tic
-
-            results.append(Result(run_time, top_k, db_ids, actual_ids))
-        return results
-
-    def run_ivf(self, option, top_k=K, num_runs=RUNS):
-        if option == "build":
-            self.vectors = self.read_data()
-            self.build_index()
-        else:
-            self.vectors = self.read_data()
-            centroids = self.load_centroids()
-            res = self.run_queries(self.vectors, top_k=top_k, num_runs=num_runs,
-                                   algo="ivf", centroids=centroids)
-            print(eval(res))
-
-    def run_ivf_pq(self, top_k=K, num_runs=RUNS):
-        self.vectors = self.read_data()
-        new_dim = 35
-        pq = PQ(20, new_dim, D)
-        pq.train(self.vectors)
-        self.build_index(self.vectors, True, pq=pq)
-
-        # Search
-        res = self.run_queries(
-            self.vectors, top_k=top_k, num_runs=num_runs, algo="ivf_pq", dim=new_dim, pq=pq)
-        print(eval(res))
-
-    def run_ivf_faiss(self, top_k=K, num_runs=RUNS):
-        data = np.random.random((self.data_size, D))
-        nlist = self.n_clusters
-        quantizer = faiss.IndexFlatL2(D)
-        index = faiss.IndexIVFFlat(quantizer, D, nlist)
-        index.train(data)
-        index.add(data)
-        index.nprobe = self.n_probe
-
-        results = self.run_queries(data, top_k=top_k, num_runs=num_runs,
-                                   algo="faiss", index=index)
-        print(eval(results))
-
-    def run_ivf_pq_faiss(self, top_k=K, num_runs=RUNS):
-        data = np.random.random((self.data_size, D))
-        m = 14
-        nbits = 5
-
-        # Train the IVF with PQ index
-        index = faiss.IndexIVFPQ(faiss.IndexFlatL2(
-            D), D, self.n_clusters, m, nbits)
-        index.train(data)
-        index.add(data)
-        results = self.run_queries(data, top_k=top_k, num_runs=num_runs,
-                                   algo="faiss", index=index)
-        print(eval(results))
-
-    def run_hnsw_faiss(self, dim=D, top_k=K, num_runs=RUNS, data=None):
-        if data is None:
-            data = np.random.random(
-                (self.data_size, D)).astype('float32')
-        n_clusters = 64
-        index = faiss.IndexHNSWFlat(dim, n_clusters, faiss.METRIC_L2)
-        index.add(data)
-        results = self.run_queries(data, top_k=top_k, num_runs=num_runs,
-                                   algo="faiss", index=index)
-        print(eval(results))
