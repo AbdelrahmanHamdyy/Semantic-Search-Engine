@@ -51,6 +51,9 @@ class IVF_PQ:
     def calc_similarity(self, vec1, vec2):
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
+    def euclidean_distance(self, vec1, vec2):
+        return np.linalg.norm(np.array(vec1) - np.array(vec2))
+
     def save_vectors(self, records):
         with open(self.data_file_path, 'wb') as file:
             for record in records:
