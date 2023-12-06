@@ -71,9 +71,14 @@ class PQ:
         # taking each segment -> and looping over all the centroids in that segment
         for i in range(self.number_of_segments):
             for j in range(self.number_of_clusters):
+<<<<<<< HEAD
+                self.table[j][i] = np.linalg.norm(vector_segments[i] - self.centroids[i][j],ord=2, axis=1) ** 2
+    
+=======
                 self.table[j][i] = np.linalg.norm(
                     vector_segments[i] - self.centroids[i][j])
 
+>>>>>>> aea750662fe1c4f208671f4a5b110c2ff4a3856d
     '''
     Get distance between a database vector and the query which we calculated its table before
     '''
