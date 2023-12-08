@@ -24,6 +24,7 @@ class Node:
 
 class IVF:
     def __init__(self, data_file_path, n_clusters, n_probe):
+        self.data_size = 0
         self.n_clusters = n_clusters
         self.n_probe = n_probe
         self.data_file_path = data_file_path
@@ -46,7 +47,23 @@ class IVF:
                     id_size + vec_size, record["id"], *record["embed"])
                 file.write(binary_data)
 
+    def set_number_of_clusters(self):
+        if self.data_size == 10000:
+            self.n_clusters = 32
+        elif self.data_size == 100000:
+            self.n_clusters = 64
+        elif self.data_size == 1000000:
+            self.n_clusters = 128
+        elif self.data_size == 5000000:
+            self.n_clusters = 512
+        elif self.data_size == 10000000:
+            self.n_clusters = 1024
+        elif self.data_size == 20000000:
+            self.n_clusters = 2048
+
     def insert_records(self, rows: List[Dict[int, Annotated[List[float], 70]]]):
+        self.data_size += len(rows)
+        self.set_number_of_clusters()
         self.save_vectors(rows)
         self.build_index()
 
@@ -134,7 +151,8 @@ class IVF:
 
     def build_index(self):
         self.read_data()
-        self.centroids = run_kmeans_minibatch(self.vectors, k=self.n_clusters)
+        self.centroids = run_kmeans2(
+            self.vectors[:100000] if self.data_size > 100000 else self.vectors, k=self.n_clusters)
 
         self.generate_ivf()
 
@@ -155,8 +173,6 @@ class IVF:
         with open('index.bin', 'rb') as file:
             for centroid_idx in nearest_centroid_indices:
                 count = 0
-                distances = []
-                ids = []
                 chunk_size = struct.calcsize(
                     'i') + (struct.calcsize('f') * D)
                 file.seek(prev_counts[centroid_idx] * chunk_size)
@@ -166,13 +182,9 @@ class IVF:
                     chunk = file.read(chunk_size)
                     id, *vector = struct.unpack('i' + 'f' * D, chunk)
 
-                    distances.append(self.calc_similarity(vector, query[0]))
-                    ids.append(id)
+                    nearest_vectors.append(
+                        (self.calc_similarity(vector, query[0]), id))
 
                     count += 1
 
-                sorted_distances = np.argsort(distances)[-k:]
-                for idx in sorted_distances:
-                    bisect.insort(nearest_vectors, (distances[idx], ids[idx]))
-
-        return [vector[1] for vector in nearest_vectors[-k:]]
+        return [vector[1] for vector in sorted(nearest_vectors)[-k:]]
