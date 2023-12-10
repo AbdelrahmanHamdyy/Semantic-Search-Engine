@@ -165,3 +165,5 @@ centroids.bin
 indexLSH.bin
 vectors.bin
 saved_db.bin
+hashesLSH.bin
+uniform_planes.bin

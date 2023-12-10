@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     db =  LSH(new_db=True)
     # db = VecDBWorst()
-    records_np = rng.random((100000, 70))
+    records_np = rng.random((1000000, 70))
     _len = len(records_np)
     # df = pd.read_csv("./saved_db.csv")
     # records_np=df.values

@@ -5,19 +5,20 @@ from collections import defaultdict
 import pickle
 import heapq
 import struct
+import h5py
 
 class LSH:
     # hash_size: the length of the resulting binary hash code
     def __init__(self,file_path="saved_db.csv", new_db=True):
         self.data_size = 0
-        self.hash_size = None
+        self.hash_size = 1
         self.input_dim = 70
         self.data_file_path = file_path
-        self.num_hashtables = None
+        self.num_hashtables = 1
         self.index_file_path = "indexLSH.bin"
         self.hashes_file_path = "hashesLSH.bin"
         self.vectors_file_path = "vectors.bin"
-        self.hashes=[]
+        self.hashes={}
     # initialize uniform planes used to generate binary hash codes
     def _init_uniform_planes(self):
         self.uniform_planes = [self._generate_uniform_planes()
@@ -48,7 +49,7 @@ class LSH:
 
     # initialize hash tables, each hash table is a dictionary
     def _init_hashtables(self):
-        self.hash_tables = [dict() for _ in range(self.num_hashtables)]
+        self.hash_tables = dict() #[dict() for _ in range(self.num_hashtables)]
     # hash input_point and store it in the corresponding hash table
     def _hash(self, planes, input_point):
         input_point = np.array(input_point)  # for faster dot product
@@ -63,9 +64,7 @@ class LSH:
                 binary_data = struct.pack(
                     id_size + vec_size, indx, *vector)
                 file.write(binary_data)
-        # np.savetxt(self.data_file_path, rows, delimiter=',')
-    # def read_data(self):
-    #     self.vectors = np.loadtxt(self.data_file_path, delimiter=',')
+
     
     def insert_records(self, data):
         self.data_size += len(data)
@@ -80,76 +79,99 @@ class LSH:
                 if not chunk:
                     break
                 id, *vector = struct.unpack('I' + 'f' * self.input_dim, chunk)
-                input_point = {"id": id, "embed": vector}
-                for i, table in enumerate(self.hash_tables):
-                    h = self._hash(self.uniform_planes[i], input_point["embed"])
-                    input_point["embed"]=tuple(input_point["embed"])
-                    table.setdefault(h, set()).add(frozenset(input_point.items()))
+                # input_point = {"id": id, "embed": vector}
+                for i, _ in enumerate(self.uniform_planes):
+                    h = self._hash(self.uniform_planes[i], vector)
+                    # input_point["embed"]=tuple(input_point["embed"])
+                    self.hash_tables.setdefault(h, set()).add((id,tuple(vector)))
         index=[]
         count=0
-        for table in self.hash_tables:
-            hashes={}
-            for ele in table.keys():
-                hashes[ele]=(len(table.get(ele,[])),count)
-                count+=len(table.get(ele,[]))
-                my_set_of_frozensets=table.get(ele,[])
-                index.extend([dict(frozenset_item) for frozenset_item in my_set_of_frozensets])
-            self.hashes.append(hashes)
+        for ele in self.hash_tables.keys():
+            # hashes={}
+            # for ele in table.keys():
+            self.hashes[ele]=(len(self.hash_tables.get(ele,[])),count)
+            count+=len(self.hash_tables.get(ele,[]))
+            my_set_of_frozensets=self.hash_tables.get(ele,[])
+            index.extend([(frozenset_item) for frozenset_item in my_set_of_frozensets])
+            # index.extend([(frozenset_item) for frozenset_item in my_set_of_frozensets])
+            # self.hashes.append(hashes)
         self.save_index(index)
-        self.save_hashes(hashes)
+        self.save_hashes(self.hashes)
+        self.save_uniform_planes()
+
+    def save_uniform_planes(self):
+        with open("uniform_planes.bin", 'wb') as file:
+            for vector in self.uniform_planes:
+                for ele in vector:
+                    vec_size = 'f' * self.input_dim
+                    binary_data = struct.pack(
+                        vec_size, *ele)
+                    file.write(binary_data)
 
     def save_index(self, index):
         with open(self.index_file_path, 'wb') as file:
             for vector in index:
                 id_size = 'i'
-                vec_size = 'f' * len(vector["embed"])
+                vec_size = 'f' * self.input_dim
                 binary_data = struct.pack(
-                    id_size + vec_size, vector["id"], *vector["embed"])
+                    id_size + vec_size, vector[0], *vector[1])
                 file.write(binary_data)
 
     def save_hashes(self, hashes):
         with open(self.hashes_file_path, 'wb') as file:
-            for i,hash_ in enumerate(hashes):
-                for ele in hash_:
-                    vec_size = 'i'
-                    count_size = 'i'
-                    prev_count_size = 'i'
-                    id_ = 'i'
-                    binary_data = struct.pack(
-                        vec_size + count_size + prev_count_size+id_, ele[0], ele[1], ele[2],i)
-                    file.write(binary_data)
+            for key,hash_ in hashes.items():
+                vec_size = 'i'
+                count_size = 'i'
+                prev_count_size = 'i'
+                # id_ = 'i'
+                binary_data = struct.pack(
+                    vec_size + count_size + prev_count_size, key, hash_[0], hash_[1])
+                file.write(binary_data)
     
     def load_hashes(self):
-        dtype = np.dtype([('values', 'f', D), ('count', 'i'),('prev', 'i'), ('count', 'i')])
+        dtype = np.dtype([('key_hash', 'i'), ('count', 'i'),('prev', 'i')])
 
         return np.memmap(
-            self.centroids_file_path, dtype=dtype, mode='r')
+            self.hashes_file_path, dtype=dtype, mode='r')
+    def load_index(self):
+        dtype = np.dtype([('id', 'i'), ('vector', 'f',self.input_dim)])
+
+        return np.memmap(
+            self.index_file_path, dtype=dtype, mode='r')
+    def load_uniform_planes(self):
+        dtype = np.dtype([('vector', 'f',self.input_dim)])
+        return np.memmap(
+            "uniform_planes.bin", dtype=dtype, mode='r')
+
     def retrive(self, query_vector, num_results=5):
-        # hash_tables = self.load_index()
-        candidates = set()
+        nearest_vectors = set()
         d_func = LSH._cal_score
-        for i, table in enumerate(self.hashes):
-            binary_hash = self._hash(self.uniform_planes[i], query_vector)
-            tableList= table.get(binary_hash, [])
-            if(tableList==[]):
+
+        for i in range(self.num_hashtables):
+            binary_hash = self._hash(
+                self.load_uniform_planes()['vector'][i * self.hash_size:(i + 1) * self.hash_size],
+                query_vector
+            )
+
+            hash_tables = self.load_hashes()
+            tableList = hash_tables[hash_tables['key_hash'] == binary_hash]
+
+            if len(tableList) == 0:
                 continue
-            count=0
-            chunk_size = struct.calcsize('i') + (struct.calcsize('f') * self.input_dim)
-            with open(self.index_file_path, 'rb') as file:
-                file.seek(tableList[1] * chunk_size)
-                # Reading records after the jump
-                while count != tableList[0]:
-                    chunk = file.read(chunk_size)
-                    id, *vector = struct.unpack('I' + 'f' * self.input_dim, chunk)
-                    frozenset_dict = frozenset([('id', id), ('embed', tuple(vector))])
-                    candidates.add(frozenset_dict)
-                    count += 1
-        # rank candidates by distance function
-        candidates = [(dict(ix)["id"], d_func(query_vector, dict(ix)["embed"]))
-                    for ix in candidates]
-        candidates = sorted(candidates, key=lambda x: x[1])
-        result = [candidate[0] for candidate in candidates[-num_results:]]
-        return result
+
+            tableList = tableList[0]
+            start_idx = tableList[2]
+            end_idx = start_idx + tableList[1]
+
+            index = self.load_index()
+            similarities = [d_func(index[i][1], query_vector[0]) for i in range(start_idx, end_idx)]
+            nearest_vectors.update(zip(similarities, index[start_idx:end_idx]['id']))
+
+        # Sort the nearest_vectors and get the top-k results
+        result_ids = [vector[1] for vector in heapq.nlargest(
+            num_results, nearest_vectors, key=lambda x: x[0])]
+
+        return result_ids
 
     @staticmethod
     def euclidean_dist_square(x, y):
