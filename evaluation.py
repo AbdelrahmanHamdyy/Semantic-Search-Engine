@@ -1,11 +1,16 @@
+import pandas as pd
 import numpy as np
+import os
 from worst_case_implementation import VecDBWorst
 import time
 from dataclasses import dataclass
 from typing import List
 from LSH import LSH
+from memory_profiler import memory_usage
+
 AVG_OVERX_ROWS = 10
-import pandas as pd
+DATA_PATH = "saved_db.csv"
+results = []
 
 
 @dataclass
@@ -16,28 +21,27 @@ class Result:
     actual_ids: List[int]
 
 
-def run_queries(db, np_rows, top_k, num_runs):
+def run_queries(db, query, top_k, actual_ids, num_runs):
+    global results
     results = []
     for _ in range(num_runs):
-        print("ME")
-        query = np.random.random((1, 70))
-
         tic = time.time()
         db_ids = db.retrive(query, top_k)
         toc = time.time()
         run_time = toc - tic
-        print("Kasab")
-        tic = time.time()
-        actual_ids = np.argsort(np_rows.dot(query.T).T / (np.linalg.norm(np_rows, axis=1) * np.linalg.norm(query)), axis= 1).squeeze().tolist()[::-1]
-        toc = time.time()
-        np_run_time = toc - tic
-
         results.append(Result(run_time, top_k, db_ids, actual_ids))
     return results
 
 
-def eval(results: List[Result]):
-    print("eval")
+def memory_usage_run_queries(args):
+    global results
+    # This part is added to calcauate the RAM usage
+    mem_before = max(memory_usage())
+    mem = memory_usage(proc=(run_queries, args, {}), interval=1e-3)
+    return results, max(mem) - mem_before
+
+
+def evaluate_result(results: List[Result]):
     # scores are negative. So getting 0 is the best score.
     scores = []
     run_time = []
@@ -56,24 +60,33 @@ def eval(results: List[Result]):
             except:
                 score -= len(res.actual_ids)
         scores.append(score)
-    acc = sum(1 for num in scores if num == 0)
-    return sum(scores) / len(scores), sum(run_time) / len(run_time), acc/len(scores)
 
+    return sum(scores) / len(scores), sum(run_time) / len(run_time)
 
 if __name__ == "__main__":
-   
+    rng = np.random.default_rng(50)
+    rng_query = np.random.default_rng(10)
 
-    db =  LSH(18,70,20)
+    db =  LSH(new_db=True)
     # db = VecDBWorst()
-    records_np = np.random.random((1000000, 70))
+    records_np = rng.random((100000, 70))
+    _len = len(records_np)
     # df = pd.read_csv("./saved_db.csv")
     # records_np=df.values
-    records_dict = [{"id": i, "embed": list(row)}
-                    for i,row in enumerate(records_np)]
-    _len = len(records_np)
-    db.insert_records(records_dict)
-    res = run_queries(db, records_np, 5, 10)
-    print(eval(res))
+    # records_dict = [{"id": i, "embed": list(row)}
+    #                 for i,row in enumerate(records_np)]
+    db.insert_records(records_np)
+
+    query = rng_query.random((1, 70), dtype=np.float32)
+    actual_ids = np.argsort(records_np.dot(query.T).T / (np.linalg.norm(
+        records_np, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
+    res = run_queries(db, query, 5, actual_ids, 10)
+
+    res, mem = memory_usage_run_queries((db, query, 5, actual_ids, 3))
+    eval = evaluate_result(res)
+    to_print = f"100k\tscore\t{eval[0]}\ttime\t{eval[1]:.2f}\tRAM\t{mem:.2f} MB"
+
+    print(to_print)
 
     # records_np = np.concatenate([records_np, np.random.random((90000, 70))])
     # records_dict = [{"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]

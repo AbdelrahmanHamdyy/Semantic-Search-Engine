@@ -1,22 +1,19 @@
 from datasketch import MinHash, MinHashLSH
 import numpy as np
-import faiss
 import numpy as np
 from collections import defaultdict
-from storage import storage
 import pickle
 import heapq
 import struct
 
 class LSH:
     # hash_size: the length of the resulting binary hash code
-    def __init__(self, hash_size, input_dim, num_hashtables=1):
-        self.hash_size = hash_size
-        self.input_dim = input_dim
-        self.num_hashtables = num_hashtables
-        self.storage_config={ 'dict': None }
-        self._init_uniform_planes()
-        self._init_hashtables()
+    def __init__(self,file_path="saved_db.csv", new_db=True):
+        self.data_size = 0
+        self.hash_size = None
+        self.input_dim = 70
+        self.data_file_path = file_path
+        self.num_hashtables = None
         self.index_file_path = "indexLSH.bin"
         self.hashes_file_path = "hashesLSH.bin"
         self.vectors_file_path = "vectors.bin"
@@ -28,28 +25,53 @@ class LSH:
 
     def _generate_uniform_planes(self):
         return np.random.randn(self.hash_size, self.input_dim)
-    
+
+    def set_number_of_clusters(self):
+        if self.data_size == 10000:
+            self.hash_size=10
+            self.num_hashtables=9
+        elif self.data_size == 100000:
+            self.hash_size=15
+            self.num_hashtables=15
+        elif self.data_size == 1000000:
+            self.hash_size=18
+            self.num_hashtables=20
+        elif self.data_size == 5000000:
+            self.hash_size=20
+            self.num_hashtables=20
+        # elif self.data_size == 10000000:
+        #     self.n_clusters = 1024
+        # elif self.data_size == 20000000:
+        #     self.n_clusters = 2048
+        self._init_uniform_planes()
+        self._init_hashtables()
+
     # initialize hash tables, each hash table is a dictionary
     def _init_hashtables(self):
-        self.hash_tables = [storage(self.storage_config, i)
-                                for i in range(self.num_hashtables)]
+        self.hash_tables = [dict() for _ in range(self.num_hashtables)]
     # hash input_point and store it in the corresponding hash table
     def _hash(self, planes, input_point):
         input_point = np.array(input_point)  # for faster dot product
         projections = np.dot(planes, input_point.T)
-        return "".join(['1' if i > 0 else '0' for i in projections])
+        return int("".join(['1' if i > 0 else '0' for i in projections]), 2)
 
-    def save_vectors(self, index):
+    def save_vectors(self, indexes):
         with open(self.vectors_file_path, 'wb') as file:
-            for vector in index:
+            for indx,vector in enumerate(indexes):
                 id_size = 'i'
-                vec_size = 'f' * len(vector["embed"])
+                vec_size = 'f' * self.input_dim
                 binary_data = struct.pack(
-                    id_size + vec_size, vector["id"], *vector["embed"])
+                    id_size + vec_size, indx, *vector)
                 file.write(binary_data)
+        # np.savetxt(self.data_file_path, rows, delimiter=',')
+    # def read_data(self):
+    #     self.vectors = np.loadtxt(self.data_file_path, delimiter=',')
     
     def insert_records(self, data):
+        self.data_size += len(data)
         self.save_vectors(data)
+        self.set_number_of_clusters()
+
         chunk_size = struct.calcsize('i') + (struct.calcsize('f') * self.input_dim)
         with open(self.vectors_file_path, 'rb') as file:
             # Reading records after the jump
@@ -62,19 +84,19 @@ class LSH:
                 for i, table in enumerate(self.hash_tables):
                     h = self._hash(self.uniform_planes[i], input_point["embed"])
                     input_point["embed"]=tuple(input_point["embed"])
-                    table.append_val(h, frozenset(input_point.items()))
+                    table.setdefault(h, set()).add(frozenset(input_point.items()))
         index=[]
         count=0
         for table in self.hash_tables:
             hashes={}
             for ele in table.keys():
-                hashes[ele]=(len(table.get_list(ele)),count)
-                count+=len(table.get_list(ele))
-                my_set_of_frozensets=table.get_list(ele)
+                hashes[ele]=(len(table.get(ele,[])),count)
+                count+=len(table.get(ele,[]))
+                my_set_of_frozensets=table.get(ele,[])
                 index.extend([dict(frozenset_item) for frozenset_item in my_set_of_frozensets])
             self.hashes.append(hashes)
         self.save_index(index)
-        # self.save_hashes(hashes)
+        self.save_hashes(hashes)
 
     def save_index(self, index):
         with open(self.index_file_path, 'wb') as file:
@@ -96,7 +118,12 @@ class LSH:
                     binary_data = struct.pack(
                         vec_size + count_size + prev_count_size+id_, ele[0], ele[1], ele[2],i)
                     file.write(binary_data)
+    
+    def load_hashes(self):
+        dtype = np.dtype([('values', 'f', D), ('count', 'i'),('prev', 'i'), ('count', 'i')])
 
+        return np.memmap(
+            self.centroids_file_path, dtype=dtype, mode='r')
     def retrive(self, query_vector, num_results=5):
         # hash_tables = self.load_index()
         candidates = set()
