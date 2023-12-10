@@ -1,4 +1,6 @@
 import numpy as np
+import pandas as pd
+import csv
 import heapq
 import struct
 from PQ import *
@@ -33,20 +35,17 @@ class IVF:
         self.vectors = []
         self.inverted_index = {}
         self.centroids_dict = {}
-        self.i = 0
         self.iterations = 0
 
     def calc_similarity(self, vec1, vec2):
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
-    def save_vectors(self, records):
-        with open(self.data_file_path, 'wb') as file:
-            for record in records:
-                id_size = 'i'
-                vec_size = 'f' * len(record["embed"])
-                binary_data = struct.pack(
-                    id_size + vec_size, record["id"], *record["embed"])
-                file.write(binary_data)
+    def save_vectors(self, rows):
+        with open(self.file_path, "a+") as fout:
+            for row in rows:
+                id, embed = row["id"], row["embed"]
+                row_str = f"{id}," + ",".join([str(e) for e in embed])
+                fout.write(f"{row_str}\n")
 
     def set_number_of_clusters(self):
         if self.data_size == 10000:
@@ -69,16 +68,9 @@ class IVF:
         self.build_index()
 
     def read_data(self):
-        self.vectors = list(self.vectors)
-        chunk_size = struct.calcsize('i') + (struct.calcsize('f') * D)
-        with open(self.data_file_path, 'rb') as file:
-            while True:
-                chunk = file.read(chunk_size)
-                if not chunk:
-                    break
-                _, *vector = struct.unpack('I' + 'f' * D, chunk)
-                self.vectors.append(vector)
-        self.vectors = np.array(self.vectors)
+        df = pd.read_csv(self.data_file_path, header=None)
+
+        self.vectors = df.iloc[:, 1:].to_numpy()
 
     def generate_ivf(self):
         self.inverted_index = {i: [] for i in range(self.n_clusters)}
@@ -134,15 +126,27 @@ class IVF:
             self.centroids_file_path, dtype=dtype, mode='r')
 
     def handle_big_data(self):
-        pass
+        # Define the chunk size (adjust as needed)
+        chunk_size = 1000000
+
+        # Iterate through chunks
+        for chunk_number, self.vectors in enumerate(pd.read_csv(self.data_file_path, chunksize=chunk_size)):
+            print(f"Processing Chunk {chunk_number + 1}")
+            # Perform operations on the chunk
+            if chunk_number == 0:
+                self.centroids = run_kmeans2(
+                    self.vectors[:500000], k=self.n_clusters)
+
+            # TODO: Build Index
+
+            # If you want to stop after processing 5 million rows
+            if chunk_number + 1 >= self.iterations:
+                break
 
     def build_index(self):
         if (self.data_size > 10000000):
             self.iterations = self.data_size / 1000000
-            self.i = 1000000
             self.handle_big_data()
-            self.centroids = run_kmeans2(
-                self.vectors[:500000], k=self.n_clusters)
         else:
             self.read_data()
             self.centroids = run_kmeans2(
