@@ -1,10 +1,9 @@
 import numpy as np
-import bisect
+import heapq
 import struct
 from PQ import *
 from kmeans import *
 from worst_case_implementation import *
-from dataclasses import dataclass
 
 
 N = 1000000  # Size of the data
@@ -12,7 +11,7 @@ D = 70  # Vector Dimension
 K = 5  # TOP_K
 RUNS = 10  # Number of Runs
 
-CLUSTERS = 64  # Number of clusters
+CLUSTERS = 32  # Number of clusters
 P = 10  # Probing count
 
 
@@ -23,17 +22,19 @@ class Node:
 
 
 class IVF:
-    def __init__(self, data_file_path, n_clusters, n_probe):
+    def __init__(self, file_path="saved_db.bin", new_db=True):
         self.data_size = 0
-        self.n_clusters = n_clusters
-        self.n_probe = n_probe
-        self.data_file_path = data_file_path
+        self.n_clusters = CLUSTERS
+        self.n_probe = P
+        self.data_file_path = file_path
         self.index_file_path = "index.bin"
         self.centroids_file_path = "centroids.bin"
         self.centroids = None
         self.vectors = []
         self.inverted_index = {}
         self.centroids_dict = {}
+        self.i = 0
+        self.iterations = 0
 
     def calc_similarity(self, vec1, vec2):
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
@@ -80,26 +81,22 @@ class IVF:
         self.vectors = np.array(self.vectors)
 
     def generate_ivf(self):
-        for i in range(self.n_clusters):
-            self.inverted_index[i] = []
-            self.centroids_dict[i] = [self.centroids[i], 0, 0]
+        self.inverted_index = {i: [] for i in range(self.n_clusters)}
+        self.centroids_dict = {i: [self.centroids[i], 0, 0]
+                               for i in range(self.n_clusters)}
 
         # Assign each vector to the nearest centroid
         similarities = []
+        norms = np.linalg.norm(self.centroids, axis=1)
         for vector in self.vectors:
-            vec_nearest = [self.calc_similarity(
-                vector, centroid) for centroid in self.centroids]
-            similarities.append(vec_nearest)
+            similarities.append(np.dot(self.centroids, vector) / (
+                norms * np.linalg.norm(vector)))
         assigned_centroids = np.argmax(similarities, axis=1)
 
         for vector_id, centroid_idx in enumerate(assigned_centroids):
             self.centroids_dict[centroid_idx][1] += 1
             vec = self.vectors[vector_id]
             self.inverted_index[centroid_idx].append(Node(vector_id, vec))
-
-        # Sort centroids_dict and inverted_index
-        self.centroids_dict = dict(sorted(self.centroids_dict.items()))
-        self.inverted_index = dict(sorted(self.inverted_index.items()))
 
         sum = 0
         for _, val in self.centroids_dict.items():
@@ -131,28 +128,25 @@ class IVF:
                 file.write(binary_data)
 
     def load_centroids(self):
-        vec_size = struct.calcsize('f') * D
-        count_size = struct.calcsize('i')
-        prev_count_size = struct.calcsize('i')
-        chunk_size = vec_size + count_size + prev_count_size
+        dtype = np.dtype([('values', 'f', D), ('x', 'i'), ('y', 'i')])
 
-        centroids = []
-        with open(self.centroids_file_path, "rb") as file:
-            while chunk := file.read(chunk_size):
-                vec_size = 'f' * D
-                count_size = 'i'
-                prev_count_size = 'i'
-                # Unpacking the binary data
-                *values, x, y = struct.unpack(vec_size +
-                                              count_size + prev_count_size, chunk)
-                centroids.append([values, x, y])
+        return np.memmap(
+            self.centroids_file_path, dtype=dtype, mode='r')
 
-        return centroids
+    def handle_big_data(self):
+        pass
 
     def build_index(self):
-        self.read_data()
-        self.centroids = run_kmeans2(
-            self.vectors[:100000] if self.data_size > 100000 else self.vectors, k=self.n_clusters)
+        if (self.data_size > 10000000):
+            self.iterations = self.data_size / 1000000
+            self.i = 1000000
+            self.handle_big_data()
+            self.centroids = run_kmeans2(
+                self.vectors[:500000], k=self.n_clusters)
+        else:
+            self.read_data()
+            self.centroids = run_kmeans2(
+                self.vectors[:100000] if self.data_size > 100000 else self.vectors, k=self.n_clusters)
 
         self.generate_ivf()
 
@@ -160,31 +154,38 @@ class IVF:
         self.save_index()
 
     def retrive(self, query, k):
-        centroids_list = self.load_centroids()
-        centroid_vectors, counts, prev_counts = zip(*centroids_list)
+        centroids_array = self.load_centroids()
+        prev_counts = centroids_array['y']
+        counts = centroids_array['x']
+        centroid_vectors = centroids_array['values']
 
-        similarities = [self.calc_similarity(
-            query[0], centroid) for centroid in centroid_vectors]
+        similarities = np.dot(centroid_vectors, query[0]) / (
+            np.linalg.norm(centroid_vectors, axis=1) * np.linalg.norm(query[0]))
 
         nearest_centroid_indices = np.argsort(similarities)[-self.n_probe:]
 
-        # Search in each of the nearest centroids
+        filename = 'index.bin'
+        dtype = np.dtype([('id', 'i'), ('vector', 'f', D)])
+
+        mmapped_array = np.memmap(filename, dtype=dtype, mode='r')
         nearest_vectors = []
-        with open('index.bin', 'rb') as file:
-            for centroid_idx in nearest_centroid_indices:
-                count = 0
-                chunk_size = struct.calcsize(
-                    'i') + (struct.calcsize('f') * D)
-                file.seek(prev_counts[centroid_idx] * chunk_size)
 
-                # Reading records after the jump
-                while count != counts[centroid_idx]:
-                    chunk = file.read(chunk_size)
-                    id, *vector = struct.unpack('i' + 'f' * D, chunk)
+        for centroid_idx in nearest_centroid_indices:
+            start_idx = prev_counts[centroid_idx]
+            end_idx = start_idx + counts[centroid_idx]
 
-                    nearest_vectors.append(
-                        (self.calc_similarity(vector, query[0]), id))
+            # Extract relevant records using slicing
+            relevant_records = mmapped_array[start_idx:end_idx]
 
-                    count += 1
+            # Calculate similarities for all records in one go
+            similarities = np.dot(relevant_records['vector'], query[0]) / (
+                np.linalg.norm(relevant_records['vector'], axis=1) * np.linalg.norm(query[0]))
 
-        return [vector[1] for vector in sorted(nearest_vectors)[-k:]]
+            # Combine similarities with record IDs
+            nearest_vectors.extend(zip(similarities, relevant_records['id']))
+
+        # Sort the nearest_vectors and get the top-k results
+        result_ids = [vector[1] for vector in heapq.nlargest(
+            k, nearest_vectors, key=lambda x: x[0])]
+
+        return result_ids
