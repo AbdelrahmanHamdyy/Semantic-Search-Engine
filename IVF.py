@@ -41,7 +41,7 @@ class IVF:
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
     def save_vectors(self, rows):
-        with open(self.file_path, "a+") as fout:
+        with open(self.data_file_path, "a+") as fout:
             for row in rows:
                 id, embed = row["id"], row["embed"]
                 row_str = f"{id}," + ",".join([str(e) for e in embed])
