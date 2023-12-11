@@ -28,20 +28,21 @@ class VecDB:
         self.centroids_file_path = "centroids.bin"
         self.n_clusters = CLUSTERS
         self.n_probe = P
+        self.data_size = 0
         self.data_file_path = file_path
-        if self.file_path == "saved_db_10k.csv":
+        if file_path == "saved_db_10k.csv":
             self.data_size = 10000
-        elif self.file_path == "saved_db_100k.csv":
+        elif file_path == "saved_db_100k.csv":
             self.data_size = 100000
-        elif self.file_path == "saved_db_1m.csv":
+        elif file_path == "saved_db_1m.csv":
             self.data_size = 1000000
-        elif self.file_path == "saved_db_5m.csv":
+        elif file_path == "saved_db_5m.csv":
             self.data_size = 5000000
-        elif self.file_path == "saved_db_10m.csv":
+        elif file_path == "saved_db_10m.csv":
             self.data_size = 10000000
-        elif self.file_path == "saved_db_15m.csv":
+        elif file_path == "saved_db_15m.csv":
             self.data_size = 15000000
-        elif self.file_path == "saved_db_20m.csv":
+        elif file_path == "saved_db_20m.csv":
             self.data_size = 20000000
         self.set_number_of_clusters()
 
