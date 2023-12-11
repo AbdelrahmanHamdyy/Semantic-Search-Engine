@@ -1,12 +1,17 @@
 import numpy as np
 import os
+from worst_case_implementation import VecDBWorst
+from memory_profiler import memory_usage
 import time
 from dataclasses import dataclass
 from typing import List
 from IVF_PQ import IVF_PQ
 from PQ import PQ
-AVG_OVERX_ROWS = 10
-DATA_PATH = "saved_db.bin"
+from vec_db import VecDB
+DATA_PATH = "saved_db.csv"
+results = []
+DB_SEED = 50
+QUERY_SEED = 10
 
 
 @dataclass
@@ -17,30 +22,27 @@ class Result:
     actual_ids: List[int]
 
 
-def run_queries(db, np_rows, top_k, num_runs):
+def run_queries(db, query, top_k, actual_ids, num_runs):
+    global results
     results = []
     for _ in range(num_runs):
-        query = np.random.random((1, 70))
-
         tic = time.time()
         db_ids = db.retrieve(query, top_k)
         toc = time.time()
         run_time = toc - tic
-        #print("*****")
-        #print(db_ids)
-        #print("*****")
-        tic = time.time()
-        actual_ids = np.argsort(np_rows.dot(query.T).T / (np.linalg.norm(
-            np_rows, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
-        toc = time.time()
-        np_run_time = toc - tic
-        #print(actual_ids)
-        #print("*****")
         results.append(Result(run_time, top_k, db_ids, actual_ids))
     return results
 
 
-def eval(results: List[Result]):
+def memory_usage_run_queries(args):
+    global results
+    # This part is added to calcauate the RAM usage
+    mem_before = max(memory_usage())
+    mem = memory_usage(proc=(run_queries, args, {}), interval=1e-3)
+    return results, max(mem) - mem_before
+
+
+def evaluate_result(results: List[Result]):
     # scores are negative. So getting 0 is the best score.
     scores = []
     run_time = []
@@ -59,80 +61,49 @@ def eval(results: List[Result]):
             except:
                 score -= len(res.actual_ids)
         scores.append(score)
-    acc = sum(1 for num in scores if num == 0)
-    return sum(scores) / len(scores), sum(run_time) / len(run_time), acc/len(scores)
+
+    return sum(scores) / len(scores), sum(run_time) / len(run_time)
+
+
+def get_actual_ids_first_k(actual_sorted_ids, k):
+    return [id for id in actual_sorted_ids if id < k]
+
+
+def evaluate(size, label):
+    rng = np.random.default_rng(DB_SEED)
+    rng_query = np.random.default_rng(QUERY_SEED)
+
+    db = VecDB()
+
+    records_np = rng.random((10**7*2, 70), dtype=np.float32)
+    if size == 10000:
+        records_dict = [{"id": i, "embed": list(row)}
+                        for i, row in enumerate(records_np)]
+        db.insert_records(records_dict)
+    else:
+        db.insert_records(records_np[:size])
+    _len = len(records_np)
+
+    query = rng_query.random((1, 70), dtype=np.float32)
+    actual_ids_20m = np.argsort(records_np.dot(query.T).T / (np.linalg.norm(
+        records_np, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
+
+    actual_ids = get_actual_ids_first_k(actual_ids_20m, size)
+
+    res = run_queries(db, query, 5, actual_ids, 10)
+
+    res, mem = memory_usage_run_queries((db, query, 5, actual_ids, 3))
+    eval = evaluate_result(res)
+    to_print = f"{label}\tscore\t{eval[0]}\ttime\t{eval[1]:.2f}\tRAM\t{mem:.2f} MB"
+
+    print(to_print)
 
 
 if __name__ == "__main__":
-    # Train PQ
-    pq_model = PQ(cluster_bits=10, number_of_segments=14, data_length=70,data_path=DATA_PATH,initially_load=False)
-    #db = IVF_PQ(data_file_path=DATA_PATH,n_clusters=64, n_probe=10, pq=pq_model)
-    # db = IVF(DATA_PATH, n_clusters=64, n_probe=10)
-
-    print("5M")
-    records_np = np.random.random((5000000, 70))
-    records_dict = [{"id": i, "embed": list(row)}
-                    for i, row in enumerate(records_np)]
-    _len = len(records_np)
-    pq_model.insert_records(records_dict,records_np)
-    res = run_queries(pq_model, records_np, 5, 1)
-    print(eval(res))
-
-    #pq_model = PQ(cluster_bits=10, number_of_segments=14, data_length=70)
-    #db.pq = pq_model
-'''
-    print("100k")
-    records_np = np.concatenate([records_np, np.random.random((90000, 70))])
-    records_dict = [
-        {"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    _len = len(records_np)
-    db.insert_records(records_dict)
-    res = run_queries(db, records_np, 5, 10)
-    print(eval(res))
-'''
-    #pq_model = PQ(cluster_bits=5, number_of_segments=14, data_length=70)
-    #db.pq = pq_model
-
-    #print("1M")
-    #records_np = np.concatenate([records_np, np.random.random((900000, 70))])
-    #records_dict = [
-    #    {"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    #_len = len(records_np)
-    #db.insert_records(records_dict)
-    #res = run_queries(db, records_np, 5, 10)
-    #print(eval(res))
-
-    # print("5M")
-    # records_np = np.concatenate([records_np, np.random.random((4000000, 70))])
-    # records_dict = [{"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    # _len = len(records_np)
-    # db.insert_records(records_dict)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(eval(res))
-
-    # print("10M")
-    # records_np = np.concatenate([records_np, np.random.random((5000000, 70))])
-    # records_dict = [{"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    # _len = len(records_np)
-    # db.insert_records(records_dict)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(eval(res))
-
-    # print("15M")
-    # records_np = np.concatenate([records_np, np.random.random((5000000, 70))])
-    # records_dict = [{"id": i +  _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    # _len = len(records_np)
-    # db.insert_records(records_dict)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(eval(res))
-
-    # print("20M")
-    # records_np = np.concatenate([records_np, np.random.random((5000000, 70))])
-    # records_dict = [{"id": i +  _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    # _len = len(records_np)
-    # db.insert_records(records_dict)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(eval(res))
-
-    #if os.path.exists(DATA_PATH):
-        #os.remove(DATA_PATH)
+    # evaluate(10000, "10k")
+    evaluate(100000, "100k")
+    # evaluate(1000000, "1M")
+    # evaluate(5000000, "5M")
+    # evaluate(10000000, "10M")
+    # evaluate(15000000, "15M")
+    # evaluate(20000000, "20M")

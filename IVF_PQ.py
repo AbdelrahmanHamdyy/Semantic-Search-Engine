@@ -1,7 +1,6 @@
 import numpy as np
 import bisect
 import struct
-import time
 from PQ import *
 from kmeans import *
 from worst_case_implementation import *

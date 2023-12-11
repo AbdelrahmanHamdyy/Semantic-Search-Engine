@@ -184,7 +184,6 @@ class PQ:
         # looping over each segment of the given vector
         # taking each segment -> and looping over all the centroids in that segment
 
-
     '''
     Get distance between a database vector and the query which we calculated its table before
     '''

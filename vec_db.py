@@ -22,14 +22,30 @@ class Node:
         self.data = data
 
 
-class IVF:
+class VecDB:
     def __init__(self, file_path="saved_db.csv", new_db=True):
-        self.data_size = 0
-        self.n_clusters = CLUSTERS
-        self.n_probe = P
-        self.data_file_path = file_path
         self.index_file_path = "index.bin"
         self.centroids_file_path = "centroids.bin"
+        self.n_clusters = CLUSTERS
+        self.n_probe = P
+        self.data_size = 0
+        self.data_file_path = file_path
+        if file_path == "saved_db_10k.csv":
+            self.data_size = 10000
+        elif file_path == "saved_db_100k.csv":
+            self.data_size = 100000
+        elif file_path == "saved_db_1m.csv":
+            self.data_size = 1000000
+        elif file_path == "saved_db_5m.csv":
+            self.data_size = 5000000
+        elif file_path == "saved_db_10m.csv":
+            self.data_size = 10000000
+        elif file_path == "saved_db_15m.csv":
+            self.data_size = 15000000
+        elif file_path == "saved_db_20m.csv":
+            self.data_size = 20000000
+        self.set_number_of_clusters()
+
         self.centroids = None
         self.vectors = []
         self.index_np = None
@@ -40,29 +56,57 @@ class IVF:
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
     def save_vectors(self, rows):
-        np.savetxt(self.data_file_path, rows, delimiter=',')
+        if self.data_size == 10000:
+            with open(self.data_file_path, "a+") as fout:
+                for row in rows:
+                    id, embed = row["id"], row["embed"]
+                    row_str = f"{id}," + ",".join([str(e) for e in embed])
+                    fout.write(f"{row_str}\n")
+        else:
+            np.savetxt(self.data_file_path, rows, delimiter=',')
 
     def set_number_of_clusters(self):
         if self.data_size == 10000:
             self.n_clusters = 32
+            self.data_file_path = "saved_db_10k/saved_db_10k.csv"
+            self.index_file_path = "saved_db_10k/index_10k.bin"
+            self.centroids_file_path = "saved_db_10k/centroids_10k.bin"
         elif self.data_size == 100000:
             self.n_clusters = 128
             self.n_probe = 10
+            self.data_file_path = "saved_db_100k/saved_db_100k.csv"
+            self.index_file_path = "saved_db_100k/index_100k.bin"
+            self.centroids_file_path = "saved_db_100k/centroids_100k.bin"
         elif self.data_size == 1000000:
             self.n_clusters = 512
             self.n_probe = 10
+            self.data_file_path = "saved_db_1m/saved_db_1m.csv"
+            self.index_file_path = "saved_db_1m/index_1m.bin"
+            self.centroids_file_path = "saved_db_1m/centroids_1m.bin"
         elif self.data_size == 5000000:
             self.n_clusters = 1024
             self.n_probe = 10
+            self.data_file_path = "saved_db_5m/saved_db_5m.csv"
+            self.index_file_path = "saved_db_5m/index_5m.bin"
+            self.centroids_file_path = "saved_db_5m/centroids_5m.bin"
         elif self.data_size == 10000000:
             self.n_clusters = 2048
             self.n_probe = 10
+            self.data_file_path = "saved_db_10m/saved_db_10m.csv"
+            self.index_file_path = "saved_db_10m/index_10m.bin"
+            self.centroids_file_path = "saved_db_10m/centroids_10m.bin"
         elif self.data_size == 15000000:
             self.n_clusters = 4096
             self.n_probe = 10
+            self.data_file_path = "saved_db_15m/saved_db_15m.csv"
+            self.index_file_path = "saved_db_15m/index_15m.bin"
+            self.centroids_file_path = "saved_db_15m/centroids_15m.bin"
         elif self.data_size == 20000000:
             self.n_clusters = 6144
             self.n_probe = 10
+            self.data_file_path = "saved_db_20m/saved_db_20m.csv"
+            self.index_file_path = "saved_db_20m/index_20m.bin"
+            self.centroids_file_path = "saved_db_20m/centroids_20m.bin"
 
     def insert_records(self, rows):
         self.data_size += len(rows)
@@ -75,7 +119,12 @@ class IVF:
         print("Index built")
 
     def read_data(self):
-        self.vectors = np.loadtxt(self.data_file_path, delimiter=',')
+        if self.data_size == 10000:
+            df = pd.read_csv(self.data_file_path, header=None)
+
+            self.vectors = df.iloc[:, 1:].to_numpy()
+        else:
+            self.vectors = np.loadtxt(self.data_file_path, delimiter=',')
 
     def train_ivf(self):
         similarities = []
