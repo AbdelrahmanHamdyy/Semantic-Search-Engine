@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     res, mem = memory_usage_run_queries((db, query, 5, actual_ids, 3))
     eval = evaluate_result(res)
-    to_print = f"100k\tscore\t{eval[0]}\ttime\t{eval[1]:.2f}\tRAM\t{mem:.2f} MB"
+    to_print = f"1M\tscore\t{eval[0]}\ttime\t{eval[1]:.2f}\tRAM\t{mem:.2f} MB"
 
     print(to_print)
 

@@ -18,7 +18,7 @@ class LSH:
         self.index_file_path = "indexLSH.bin"
         self.hashes_file_path = "hashesLSH.bin"
         self.vectors_file_path = "vectors.bin"
-        self.hashes={}
+        self.hashes=None
     # initialize uniform planes used to generate binary hash codes
     def _init_uniform_planes(self):
         self.uniform_planes = [self._generate_uniform_planes()
@@ -49,7 +49,9 @@ class LSH:
 
     # initialize hash tables, each hash table is a dictionary
     def _init_hashtables(self):
-        self.hash_tables = dict() #[dict() for _ in range(self.num_hashtables)]
+        # self.hash_tables = dict() #[dict() for _ in range(self.num_hashtables)]
+        self.hash_tables  = np.empty((2**self.hash_size,), dtype=object)
+        self.hash_tables [:] = [set() for _ in range(2**self.hash_size)]
     # hash input_point and store it in the corresponding hash table
     def _hash(self, planes, input_point):
         input_point = np.array(input_point)  # for faster dot product
@@ -83,15 +85,18 @@ class LSH:
                 for i, _ in enumerate(self.uniform_planes):
                     h = self._hash(self.uniform_planes[i], vector)
                     # input_point["embed"]=tuple(input_point["embed"])
-                    self.hash_tables.setdefault(h, set()).add((id,tuple(vector)))
+                    self.hash_tables[h].add((id,tuple(vector)))
         index=[]
         count=0
-        for ele in self.hash_tables.keys():
+        self.hashes  = np.empty((2**self.hash_size,), dtype=object)
+        self.hashes [:] = [[] for _ in range(2**self.hash_size)]
+        for ele in range(2**self.hash_size):
             # hashes={}
             # for ele in table.keys():
-            self.hashes[ele]=(len(self.hash_tables.get(ele,[])),count)
-            count+=len(self.hash_tables.get(ele,[]))
-            my_set_of_frozensets=self.hash_tables.get(ele,[])
+            temp=self.hash_tables[ele]
+            self.hashes[ele]=[len(temp),count]
+            count+=len(temp)
+            my_set_of_frozensets=temp
             index.extend([(frozenset_item) for frozenset_item in my_set_of_frozensets])
             # index.extend([(frozenset_item) for frozenset_item in my_set_of_frozensets])
             # self.hashes.append(hashes)
@@ -119,13 +124,13 @@ class LSH:
 
     def save_hashes(self, hashes):
         with open(self.hashes_file_path, 'wb') as file:
-            for key,hash_ in hashes.items():
+            for ele in range(2**self.hash_size):
                 vec_size = 'i'
                 count_size = 'i'
                 prev_count_size = 'i'
                 # id_ = 'i'
                 binary_data = struct.pack(
-                    vec_size + count_size + prev_count_size, key, hash_[0], hash_[1])
+                    vec_size + count_size + prev_count_size, ele, hashes[ele][0], hashes[ele][1])
                 file.write(binary_data)
     
     def load_hashes(self):
