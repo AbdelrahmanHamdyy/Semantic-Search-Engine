@@ -1,12 +1,8 @@
-import pandas as pd
 import numpy as np
 import os
-from worst_case_implementation import VecDBWorst
 import time
 from dataclasses import dataclass
 from typing import List
-from LSH import LSH
-from IVF import IVF
 from IVF_PQ import IVF_PQ
 from PQ import PQ
 AVG_OVERX_ROWS = 10
@@ -27,16 +23,19 @@ def run_queries(db, np_rows, top_k, num_runs):
         query = np.random.random((1, 70))
 
         tic = time.time()
-        db_ids = db.retrive(query, top_k)
+        db_ids = db.retrieve(query, top_k)
         toc = time.time()
         run_time = toc - tic
-
+        #print("*****")
+        #print(db_ids)
+        #print("*****")
         tic = time.time()
         actual_ids = np.argsort(np_rows.dot(query.T).T / (np.linalg.norm(
             np_rows, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
         toc = time.time()
         np_run_time = toc - tic
-
+        #print(actual_ids)
+        #print("*****")
         results.append(Result(run_time, top_k, db_ids, actual_ids))
     return results
 
@@ -66,23 +65,22 @@ def eval(results: List[Result]):
 
 if __name__ == "__main__":
     # Train PQ
-    pq_model = PQ(cluster_bits=5, number_of_segments=14, data_length=70)
-    db = IVF_PQ(data_file_path=DATA_PATH,
-                n_clusters=64, n_probe=10, pq=pq_model)
+    pq_model = PQ(cluster_bits=10, number_of_segments=14, data_length=70,data_path=DATA_PATH,initially_load=False)
+    #db = IVF_PQ(data_file_path=DATA_PATH,n_clusters=64, n_probe=10, pq=pq_model)
     # db = IVF(DATA_PATH, n_clusters=64, n_probe=10)
 
-    print("10k")
-    records_np = np.random.random((10000, 70))
+    print("5M")
+    records_np = np.random.random((5000000, 70))
     records_dict = [{"id": i, "embed": list(row)}
                     for i, row in enumerate(records_np)]
     _len = len(records_np)
-    db.insert_records(records_dict)
-    res = run_queries(db, records_np, 5, 10)
+    pq_model.insert_records(records_dict,records_np)
+    res = run_queries(pq_model, records_np, 5, 1)
     print(eval(res))
 
-    pq_model = PQ(cluster_bits=5, number_of_segments=14, data_length=70)
-    db.pq = pq_model
-
+    #pq_model = PQ(cluster_bits=10, number_of_segments=14, data_length=70)
+    #db.pq = pq_model
+'''
     print("100k")
     records_np = np.concatenate([records_np, np.random.random((90000, 70))])
     records_dict = [
@@ -91,18 +89,18 @@ if __name__ == "__main__":
     db.insert_records(records_dict)
     res = run_queries(db, records_np, 5, 10)
     print(eval(res))
+'''
+    #pq_model = PQ(cluster_bits=5, number_of_segments=14, data_length=70)
+    #db.pq = pq_model
 
-    pq_model = PQ(cluster_bits=5, number_of_segments=14, data_length=70)
-    db.pq = pq_model
-
-    print("1M")
-    records_np = np.concatenate([records_np, np.random.random((900000, 70))])
-    records_dict = [
-        {"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    _len = len(records_np)
-    db.insert_records(records_dict)
-    res = run_queries(db, records_np, 5, 10)
-    print(eval(res))
+    #print("1M")
+    #records_np = np.concatenate([records_np, np.random.random((900000, 70))])
+    #records_dict = [
+    #    {"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
+    #_len = len(records_np)
+    #db.insert_records(records_dict)
+    #res = run_queries(db, records_np, 5, 10)
+    #print(eval(res))
 
     # print("5M")
     # records_np = np.concatenate([records_np, np.random.random((4000000, 70))])
@@ -136,5 +134,5 @@ if __name__ == "__main__":
     # res = run_queries(db, records_np, 5, 10)
     # print(eval(res))
 
-    if os.path.exists(DATA_PATH):
-        os.remove(DATA_PATH)
+    #if os.path.exists(DATA_PATH):
+        #os.remove(DATA_PATH)

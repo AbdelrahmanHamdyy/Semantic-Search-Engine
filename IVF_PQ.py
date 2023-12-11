@@ -1,7 +1,5 @@
 import numpy as np
-import pandas as pd
 import bisect
-import faiss
 import struct
 import time
 from PQ import *
