@@ -40,7 +40,14 @@ class VecDB:
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
     def save_vectors(self, rows):
-        np.savetxt(self.data_file_path, rows, delimiter=',')
+        if self.data_size == 10000:
+            with open(self.data_file_path, "a+") as fout:
+                for row in rows:
+                    id, embed = row["id"], row["embed"]
+                    row_str = f"{id}," + ",".join([str(e) for e in embed])
+                    fout.write(f"{row_str}\n")
+        else:
+            np.savetxt(self.data_file_path, rows, delimiter=',')
 
     def set_number_of_clusters(self):
         if self.data_size == 10000:
@@ -95,7 +102,12 @@ class VecDB:
         print("Index built")
 
     def read_data(self):
-        self.vectors = np.loadtxt(self.data_file_path, delimiter=',')
+        if self.data_size == 10000:
+            df = pd.read_csv(self.data_file_path, header=None)
+
+            self.vectors = df.iloc[:, 1:].to_numpy()
+        else:
+            self.vectors = np.loadtxt(self.data_file_path, delimiter=',')
 
     def train_ivf(self):
         similarities = []

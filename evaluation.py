@@ -74,6 +74,9 @@ def evaluate(size, label):
     db = IVF()
 
     records_np = rng.random((size, 70), dtype=np.float32)
+    if size == 10000:
+        records_np = [{"id": i, "embed": list(row)}
+                      for i, row in enumerate(records_np)]
     _len = len(records_np)
     db.insert_records(records_np)
 
