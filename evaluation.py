@@ -101,8 +101,8 @@ def evaluate(size, label):
 
 if __name__ == "__main__":
     # evaluate(10000, "10k")
-    evaluate(100000, "100k")
-    # evaluate(1000000, "1M")
+    # evaluate(100000, "100k")
+    evaluate(1000000, "1M")
     # evaluate(5000000, "5M")
     # evaluate(10000000, "10M")
     # evaluate(15000000, "15M")
