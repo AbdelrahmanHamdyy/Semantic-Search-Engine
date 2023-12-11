@@ -62,24 +62,27 @@ def evaluate_result(results: List[Result]):
         scores.append(score)
 
     return sum(scores) / len(scores), sum(run_time) / len(run_time)
-
+def get_actual_ids_first_k(actual_sorted_ids, k):
+    return [id for id in actual_sorted_ids if id < k]
 if __name__ == "__main__":
     rng = np.random.default_rng(50)
     rng_query = np.random.default_rng(10)
+    vectors = rng.random((10**7*2, 70), dtype=np.float32)
+    query = rng_query.random((1, 70), dtype=np.float32)
+
+    actual_sorted_ids_20m = np.argsort(vectors.dot(query.T).T / (np.linalg.norm(vectors, axis=1) * np.linalg.norm(query)), axis= 1).squeeze().tolist()[::-1]
+    actual_ids = get_actual_ids_first_k(actual_sorted_ids_20m, 10**4)
 
     db =  LSH(new_db=True)
     # db = VecDBWorst()
-    records_np = rng.random((1000000, 70))
-    _len = len(records_np)
+    # records_np = rng.random((1000000, 70))
+    # _len = len(records_np)
     # df = pd.read_csv("./saved_db.csv")
     # records_np=df.values
     # records_dict = [{"id": i, "embed": list(row)}
     #                 for i,row in enumerate(records_np)]
-    db.insert_records(records_np)
+    db.insert_records(vectors[0:10000])
 
-    query = rng_query.random((1, 70), dtype=np.float32)
-    actual_ids = np.argsort(records_np.dot(query.T).T / (np.linalg.norm(
-        records_np, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
     res = run_queries(db, query, 5, actual_ids, 10)
 
     res, mem = memory_usage_run_queries((db, query, 5, actual_ids, 3))
