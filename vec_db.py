@@ -68,9 +68,9 @@ class VecDB:
     def set_number_of_clusters(self):
         if self.data_size == 10000:
             self.n_clusters = 32
-            self.data_file_path = "saved_db_10k/saved_db_10k.csv"
-            self.index_file_path = "saved_db_10k/index_10k.bin"
-            self.centroids_file_path = "saved_db_10k/centroids_10k.bin"
+            self.data_file_path = "saved_db_10k.csv"
+            self.index_file_path = "index_10k.bin"
+            self.centroids_file_path = "centroids_10k.bin"
         elif self.data_size == 100000:
             self.n_clusters = 128
             self.n_probe = 10
