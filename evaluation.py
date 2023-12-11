@@ -10,9 +10,10 @@ from LSH import LSH
 from IVF import IVF
 from IVF_PQ import IVF_PQ
 from PQ import PQ
-AVG_OVERX_ROWS = 10
 DATA_PATH = "saved_db.csv"
 results = []
+DB_SEED = 20
+QUERY_SEED = 10
 
 
 @dataclass
@@ -66,13 +67,13 @@ def evaluate_result(results: List[Result]):
     return sum(scores) / len(scores), sum(run_time) / len(run_time)
 
 
-if __name__ == "__main__":
-    rng = np.random.default_rng(50)
-    rng_query = np.random.default_rng(10)
+def evaluate(size, label):
+    rng = np.random.default_rng(DB_SEED)
+    rng_query = np.random.default_rng(QUERY_SEED)
 
     db = IVF()
 
-    records_np = rng.random((1000000, 70), dtype=np.float32)
+    records_np = rng.random((size, 70), dtype=np.float32)
     _len = len(records_np)
     db.insert_records(records_np)
 
@@ -83,45 +84,16 @@ if __name__ == "__main__":
 
     res, mem = memory_usage_run_queries((db, query, 5, actual_ids, 3))
     eval = evaluate_result(res)
-    to_print = f"1M\tscore\t{eval[0]}\ttime\t{eval[1]:.2f}\tRAM\t{mem:.2f} MB"
+    to_print = f"{label}\tscore\t{eval[0]}\ttime\t{eval[1]:.2f}\tRAM\t{mem:.2f} MB"
 
     print(to_print)
 
-    # records_np = np.concatenate([records_np, np.random.random((90000, 70))])
-    # _len = len(records_np)
-    # db.insert_records(records_np)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(evaluate_result(res))
 
-    # records_np = np.concatenate([records_np, np.random.random((900000, 70))])
-    # _len = len(records_np)
-    # db.insert_records(records_np)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(evaluate_result(res))
-
-    # records_np = np.concatenate([records_np, np.random.random((4000000, 70))])
-    # _len = len(records_np)
-    # db.insert_records(records_np)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(evaluate_result(res))
-
-    # records_np = np.concatenate([records_np, np.random.random((5000000, 70))])
-    # _len = len(records_np)
-    # db.insert_records(records_np)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(evaluate_result(res))
-
-    # records_np = np.concatenate([records_np, np.random.random((5000000, 70))])
-    # _len = len(records_np)
-    # db.insert_records(records_np)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(evaluate_result(res))
-
-    # records_np = np.concatenate([records_np, np.random.random((5000000, 70))])
-    # _len = len(records_np)
-    # db.insert_records(records_np)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(evaluate_result(res))
-
-    if os.path.exists(DATA_PATH):
-        os.remove(DATA_PATH)
+if __name__ == "__main__":
+    # evaluate(10000, "10k")
+    # evaluate(100000, "100k")
+    evaluate(1000000, "1M")
+    # evaluate(5000000, "5M")
+    # evaluate(10000000, "10M")
+    # evaluate(15000000, "15M")
+    # evaluate(20000000, "20M")
