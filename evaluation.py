@@ -87,42 +87,36 @@ if __name__ == "__main__":
 
     print(to_print)
 
-    # print("100k")
     # records_np = np.concatenate([records_np, np.random.random((90000, 70))])
     # _len = len(records_np)
     # db.insert_records(records_np)
     # res = run_queries(db, records_np, 5, 10)
     # print(evaluate_result(res))
 
-    # print("1M")
     # records_np = np.concatenate([records_np, np.random.random((900000, 70))])
     # _len = len(records_np)
     # db.insert_records(records_np)
     # res = run_queries(db, records_np, 5, 10)
     # print(evaluate_result(res))
 
-    # print("5M")
     # records_np = np.concatenate([records_np, np.random.random((4000000, 70))])
     # _len = len(records_np)
     # db.insert_records(records_np)
     # res = run_queries(db, records_np, 5, 10)
     # print(evaluate_result(res))
 
-    # print("10M")
     # records_np = np.concatenate([records_np, np.random.random((5000000, 70))])
     # _len = len(records_np)
     # db.insert_records(records_np)
     # res = run_queries(db, records_np, 5, 10)
     # print(evaluate_result(res))
 
-    # print("15M")
     # records_np = np.concatenate([records_np, np.random.random((5000000, 70))])
     # _len = len(records_np)
     # db.insert_records(records_np)
     # res = run_queries(db, records_np, 5, 10)
     # print(evaluate_result(res))
 
-    # print("20M")
     # records_np = np.concatenate([records_np, np.random.random((5000000, 70))])
     # _len = len(records_np)
     # db.insert_records(records_np)

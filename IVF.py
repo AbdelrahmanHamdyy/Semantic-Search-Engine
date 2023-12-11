@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import csv
 import heapq
 import struct
 from PQ import *
@@ -59,9 +58,13 @@ class IVF:
 
     def insert_records(self, rows):
         self.data_size += len(rows)
+        print("Data Size:", self.data_size)
         self.set_number_of_clusters()
+        print("Number of Clusters:", self.n_clusters)
         self.save_vectors(rows)
+        print("Vectors saved")
         self.build_index()
+        print("Index built")
 
     def read_data(self):
         self.vectors = np.loadtxt(self.data_file_path, delimiter=',')
@@ -74,25 +77,27 @@ class IVF:
                 norms * np.linalg.norm(vector)))
         return np.argmax(similarities, axis=1)
 
-    def populate_index(self, assigned_centroids):
+    def populate_index(self, assigned_centroids, offset=0):
         for vector_id, centroid_idx in enumerate(assigned_centroids):
             self.centroids_dict[centroid_idx][1] += 1
             vec = self.vectors[vector_id]
-            self.inverted_index[centroid_idx].append(Node(vector_id, vec))
+            self.inverted_index[centroid_idx].append(
+                Node(vector_id + offset, vec))
 
         sum = 0
         for _, val in self.centroids_dict.items():
             val[2] = sum
             sum += val[1]
 
-    def generate_ivf(self):
-        self.inverted_index = {i: [] for i in range(self.n_clusters)}
-        self.centroids_dict = {i: [self.centroids[i], 0, 0]
-                               for i in range(self.n_clusters)}
+    def generate_ivf(self, flag=True, offset=0):
+        if flag:
+            self.inverted_index = {i: [] for i in range(self.n_clusters)}
+            self.centroids_dict = {i: [self.centroids[i], 0, 0]
+                                   for i in range(self.n_clusters)}
 
         assigned_centroids = self.train_ivf()
 
-        self.populate_index(assigned_centroids)
+        self.populate_index(assigned_centroids, offset)
 
     def save_index(self):
         with open(self.index_file_path, 'wb') as file:
@@ -122,82 +127,48 @@ class IVF:
         dtype = np.dtype([('values', 'f', D), ('x', 'i'), ('y', 'i')])
 
         return np.memmap(
-            self.centroids_file_path, dtype=dtype, mode='r')
-
-    def update_centroids(self, assigned_centroids):
-        # Load or create the memory-mapped array for centroids
-        centroids_dtype = np.dtype(
-            [('values', 'f', D), ('count', 'i'), ('prev_count', 'i')])
-        centroids_memmap = np.memmap(
-            self.centroids_file_path, dtype=centroids_dtype, mode='r+')
-
-        # Update counts in the centroids array
-        for centroid_idx in assigned_centroids:
-            # Find the corresponding centroid in the memory-mapped array
-            centroid_record = centroids_memmap[centroid_idx]
-
-            # Update count and prev_count
-            centroid_record['count'] += 1
-            # Increment prev_count of all centroids before the centroid_idx
-            if centroid_idx > 0:
-                # Use slicing to access the relevant portion of the array
-                previous_centroids = centroids_memmap[:centroid_idx]
-
-                # Increment prev_count for each previous centroid
-                for prev_centroid in previous_centroids:
-                    prev_centroid['prev_count'] += 1
-
-    def update_index(self, index_memmap, ids, vectors, assigned_centroids):
-        for id, vector, assigned_centroid in zip(ids, vectors, assigned_centroids):
-            # Find the corresponding list in the memory-mapped array
-            assigned_list = index_memmap[assigned_centroid]['vector']
-
-            # Add the new vector to the list
-            assigned_list.append((id, vector))
+            self.centroids_file_path, dtype=dtype, mode='r+')
 
     def handle_big_data(self):
         # Define the chunk size (adjust as needed)
         chunk_size = 1000000
 
-        # Create or load the memory-mapped array for the index
-        index_dtype = np.dtype([('id', 'i'), ('vector', 'f', D)])
-
-        index_memmap = np.memmap(self.index_file_path,
-                                 dtype=index_dtype, mode='r+')
-
         # Iterate through chunks
-        for chunk_number, chunk in enumerate(pd.read_csv(self.data_file_path, chunksize=chunk_size)):
+        for chunk_number, chunk in enumerate(pd.read_csv(self.data_file_path, chunksize=chunk_size, header=None)):
             print(f"Processing Chunk {chunk_number + 1}")
-            self.vectors = chunk['vector']
+            self.vectors = np.array(chunk)
+
             if chunk_number == 0:
-                self.centroids = run_kmeans2(
-                    self.vectors[:500000], k=self.n_clusters)
-            assigned_centroids = self.train_ivf()
-
-            # Update Index
-            self.update_index(
-                index_memmap, chunk['id'], chunk['vector'], assigned_centroids)
-
-            # Update Centroids
-            self.update_centroids(assigned_centroids)
-
-            # If you want to stop after processing 5 million rows
-            if chunk_number + 1 >= self.iterations:
+                self.handle_max_1m(stop_at=500000)
+            elif chunk_number + 1 <= self.iterations:
+                self.generate_ivf(False, offset=chunk_number * 1000000)
+                print("Index and centroids updated")
+                self.save_index()
+                print("Index saved")
+                self.save_centroids()
+                print("Centroids saved")
+            else:
                 break
 
+    def handle_max_1m(self, stop_at=500000):
+        self.centroids = run_kmeans2(
+            self.vectors[:stop_at] if self.data_size > 100000 else self.vectors, k=self.n_clusters)
+        print("Clusters set")
+        self.generate_ivf()
+        print("IVF Trained")
+        self.save_centroids()
+        print("Centroids saved")
+        self.save_index()
+        print("Index saved")
+
     def build_index(self):
-        if (self.data_size > 10000000):
+        if (self.data_size > 1000000):
+            print("Handling Big Data")
             self.iterations = self.data_size / 1000000
             self.handle_big_data()
         else:
             self.read_data()
-            self.centroids = run_kmeans2(
-                self.vectors[:500000] if self.data_size > 100000 else self.vectors, k=self.n_clusters)
-
-        self.generate_ivf()
-
-        self.save_centroids()
-        self.save_index()
+            self.handle_max_1m()
 
     def retrive(self, query, k):
         centroids_array = self.load_centroids()
@@ -210,10 +181,9 @@ class IVF:
 
         nearest_centroid_indices = np.argsort(similarities)[-self.n_probe:]
 
-        filename = 'index.bin'
         dtype = np.dtype([('id', 'i'), ('vector', 'f', D)])
 
-        mmapped_array = np.memmap(filename, dtype=dtype, mode='r')
+        mmapped_array = np.memmap(self.index_file_path, dtype=dtype, mode='r')
         nearest_vectors = []
 
         for centroid_idx in nearest_centroid_indices:
