@@ -13,7 +13,7 @@ from PQ import PQ
 from vec_db import VecDB
 DATA_PATH = "saved_db.csv"
 results = []
-DB_SEED = 20
+DB_SEED = 50
 QUERY_SEED = 10
 
 
@@ -68,24 +68,31 @@ def evaluate_result(results: List[Result]):
     return sum(scores) / len(scores), sum(run_time) / len(run_time)
 
 
+def get_actual_ids_first_k(actual_sorted_ids, k):
+    return [id for id in actual_sorted_ids if id < k]
+
+
 def evaluate(size, label):
     rng = np.random.default_rng(DB_SEED)
     rng_query = np.random.default_rng(QUERY_SEED)
 
     db = VecDB()
 
-    records_np = rng.random((size, 70), dtype=np.float32)
+    records_np = rng.random((10**7*2, 70), dtype=np.float32)
     if size == 10000:
         records_dict = [{"id": i, "embed": list(row)}
                         for i, row in enumerate(records_np)]
         db.insert_records(records_dict)
     else:
-        db.insert_records(records_np)
+        db.insert_records(records_np[:size])
     _len = len(records_np)
 
     query = rng_query.random((1, 70), dtype=np.float32)
-    actual_ids = np.argsort(records_np.dot(query.T).T / (np.linalg.norm(
+    actual_ids_20m = np.argsort(records_np.dot(query.T).T / (np.linalg.norm(
         records_np, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
+
+    actual_ids = get_actual_ids_first_k(actual_ids_20m, size)
+
     res = run_queries(db, query, 5, actual_ids, 10)
 
     res, mem = memory_usage_run_queries((db, query, 5, actual_ids, 3))
@@ -96,8 +103,8 @@ def evaluate(size, label):
 
 
 if __name__ == "__main__":
-    evaluate(10000, "10k")
-    # evaluate(100000, "100k")
+    # evaluate(10000, "10k")
+    evaluate(100000, "100k")
     # evaluate(1000000, "1M")
     # evaluate(5000000, "5M")
     # evaluate(10000000, "10M")

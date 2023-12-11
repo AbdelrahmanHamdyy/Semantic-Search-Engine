@@ -47,6 +47,7 @@ class IVF:
             self.n_clusters = 32
         elif self.data_size == 100000:
             self.n_clusters = 128
+            self.n_probe = 10
         elif self.data_size == 1000000:
             self.n_clusters = 512
             self.n_probe = 10

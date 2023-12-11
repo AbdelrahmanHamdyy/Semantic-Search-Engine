@@ -73,6 +73,7 @@ class VecDB:
             self.centroids_file_path = "saved_db_10k/centroids_10k.bin"
         elif self.data_size == 100000:
             self.n_clusters = 128
+            self.n_probe = 10
             self.data_file_path = "saved_db_100k/saved_db_100k.csv"
             self.index_file_path = "saved_db_100k/index_100k.bin"
             self.centroids_file_path = "saved_db_100k/centroids_100k.bin"
