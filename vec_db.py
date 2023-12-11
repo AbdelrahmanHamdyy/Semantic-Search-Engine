@@ -68,44 +68,44 @@ class VecDB:
     def set_number_of_clusters(self):
         if self.data_size == 10000:
             self.n_clusters = 32
-            self.data_file_path = "saved_db_10k.csv"
-            self.index_file_path = "index_10k.bin"
-            self.centroids_file_path = "centroids_10k.bin"
+            self.data_file_path = "saved_db_10k/saved_db_10k.csv"
+            self.index_file_path = "saved_db_10k/index_10k.bin"
+            self.centroids_file_path = "saved_db_10k/centroids_10k.bin"
         elif self.data_size == 100000:
             self.n_clusters = 128
-            self.data_file_path = "saved_db_100k.csv"
-            self.index_file_path = "index_100k.bin"
-            self.centroids_file_path = "centroids_100k.bin"
+            self.data_file_path = "saved_db_100k/saved_db_100k.csv"
+            self.index_file_path = "saved_db_100k/index_100k.bin"
+            self.centroids_file_path = "saved_db_100k/centroids_100k.bin"
         elif self.data_size == 1000000:
             self.n_clusters = 512
             self.n_probe = 10
-            self.data_file_path = "saved_db_1m.csv"
-            self.index_file_path = "index_1m.bin"
-            self.centroids_file_path = "centroids_1m.bin"
+            self.data_file_path = "saved_db_1m/saved_db_1m.csv"
+            self.index_file_path = "saved_db_1m/index_1m.bin"
+            self.centroids_file_path = "saved_db_1m/centroids_1m.bin"
         elif self.data_size == 5000000:
             self.n_clusters = 1024
             self.n_probe = 10
-            self.data_file_path = "saved_db_5m.csv"
-            self.index_file_path = "index_5m.bin"
-            self.centroids_file_path = "centroids_5m.bin"
+            self.data_file_path = "saved_db_5m/saved_db_5m.csv"
+            self.index_file_path = "saved_db_5m/index_5m.bin"
+            self.centroids_file_path = "saved_db_5m/centroids_5m.bin"
         elif self.data_size == 10000000:
             self.n_clusters = 2048
             self.n_probe = 10
-            self.data_file_path = "saved_db_10m.csv"
-            self.index_file_path = "index_10m.bin"
-            self.centroids_file_path = "centroids_10m.bin"
+            self.data_file_path = "saved_db_10m/saved_db_10m.csv"
+            self.index_file_path = "saved_db_10m/index_10m.bin"
+            self.centroids_file_path = "saved_db_10m/centroids_10m.bin"
         elif self.data_size == 15000000:
             self.n_clusters = 4096
             self.n_probe = 10
-            self.data_file_path = "saved_db_15m.csv"
-            self.index_file_path = "index_15m.bin"
-            self.centroids_file_path = "centroids_15m.bin"
+            self.data_file_path = "saved_db_15m/saved_db_15m.csv"
+            self.index_file_path = "saved_db_15m/index_15m.bin"
+            self.centroids_file_path = "saved_db_15m/centroids_15m.bin"
         elif self.data_size == 20000000:
             self.n_clusters = 6144
             self.n_probe = 10
-            self.data_file_path = "saved_db_20m.csv"
-            self.index_file_path = "index_20m.bin"
-            self.centroids_file_path = "centroids_20m.bin"
+            self.data_file_path = "saved_db_20m/saved_db_20m.csv"
+            self.index_file_path = "saved_db_20m/index_20m.bin"
+            self.centroids_file_path = "saved_db_20m/centroids_20m.bin"
 
     def insert_records(self, rows):
         self.data_size += len(rows)
