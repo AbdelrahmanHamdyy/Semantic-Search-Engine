@@ -159,11 +159,11 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-saved_db.bin
 index.bin
 centroids.bin
 indexLSH.bin
 saved_db.csv
 vectors.bin
+saved_db.bin
 hashesLSH.bin
 uniform_planes.bin
