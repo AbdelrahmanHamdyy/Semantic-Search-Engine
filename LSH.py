@@ -31,14 +31,14 @@ class LSH:
 
     def set_number_of_clusters(self):
         if self.data_size == 10000:
-            self.hash_size=10
-            self.num_hashtables=9
+            self.hash_size=8
+            self.num_hashtables=3
         elif self.data_size == 100000:
             self.hash_size=15
             self.num_hashtables=15
         elif self.data_size == 1000000:
             self.hash_size=18
-            self.num_hashtables=20
+            self.num_hashtables=10
         elif self.data_size == 5000000:
             self.hash_size=20
             self.num_hashtables=20
@@ -80,25 +80,9 @@ class LSH:
                 if not chunk:
                     break
                 id, *vector = struct.unpack('I' + 'f' * self.input_dim, chunk)
-                # input_point = {"id": id, "embed": vector}
                 for i, _ in enumerate(self.uniform_planes):
                     h = self._hash(self.uniform_planes[i], vector)
-                    # input_point["embed"]=tuple(input_point["embed"])
                     self.hash_tables[i][h].add((id,tuple(vector)))
-        # count=0
-        # self.hashes  = np.empty((self.num_hashtables,2**self.hash_size,), dtype=object)
-        # self.hashes [:,:] = [set() for _ in range(2**self.hash_size)]
-        # for i in range(self.num_hashtables):
-        #     for ele in range(2**self.hash_size):
-        #         # hashes={}
-        #         # for ele in table.keys():
-        #         temp=self.hash_tables[i][ele]
-        #         self.hashes[i][ele]=[len(temp),count]
-        #         count+=len(temp)
-        #         index.extend(temp)#([(frozenset_item) for frozenset_item in temp])
-        #         # index.extend([(frozenset_item) for frozenset_item in my_set_of_frozensets])
-        #         # self.hashes.append(hashes)
-        # self.save_hashes(self.hashes)
         self.save_hashes()
         self.save_uniform_planes()
 
@@ -115,27 +99,6 @@ class LSH:
      
 
     def save_hashes(self):
-        # count=0
-        # with open(self.index_file_path, 'wb') as file_vector:
-        
-        #     with open(self.hashes_file_path, 'wb') as file:
-        #         for i in range(self.num_hashtables):
-        #             for ele in range(2**self.hash_size):
-        #                 temp=self.hash_tables[i][ele]
-        #                 # self.hashes[i][ele]=[len(temp),count]
-        #                 for vec in temp:
-        #                     id_size = 'i'
-        #                     vec_size = 'f' * self.input_dim
-        #                     binary_data = struct.pack(
-        #                         id_size + vec_size, vec[0], *vec[1])
-        #                     file_vector.write(binary_data)
-        #                 vec_size = 'i'
-        #                 count_size = 'i'
-        #                 prev_count_size = 'i'
-        #                 binary_data = struct.pack(
-        #                     vec_size + count_size + prev_count_size, ele, len(temp), count)
-        #                 file.write(binary_data)
-        #                 count+=len(temp)
         count=0
         with open(self.index_file_path, 'wb') as file_vector, open(self.hashes_file_path, 'wb') as file:
             for i in range(self.num_hashtables):
@@ -143,7 +106,7 @@ class LSH:
                 count_size = 'i'
                 prev_count_size = 'i'
                 binary_data_hashes = bytearray()
-
+                # print("---------------")
                 for ele in range(2**self.hash_size):
                     temp = self.hash_tables[i][ele]
                     for vec in temp:
@@ -154,9 +117,8 @@ class LSH:
 
                     binary_data_hashes += struct.pack(hash_size + count_size + prev_count_size, ele, len(temp), count)
                     count += len(temp)
-
+                    # print(len(temp))
                 file.write(binary_data_hashes)
-        # self.save_index(index)
 
     
     def load_hashes(self):
