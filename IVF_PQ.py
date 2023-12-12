@@ -1,10 +1,10 @@
 import numpy as np
-import bisect
+import pandas as pd
+import heapq
 import struct
 from PQ import *
 from kmeans import *
 from worst_case_implementation import *
-from dataclasses import dataclass
 
 
 N = 1000000  # Size of the data
@@ -12,16 +12,8 @@ D = 70  # Vector Dimension
 K = 5  # TOP_K
 RUNS = 10  # Number of Runs
 
-CLUSTERS = 64  # Number of clusters
-P = 10  # Probing count
-
-
-@dataclass
-class Result:
-    run_time: float
-    top_k: int
-    db_ids: List[int]
-    actual_ids: List[int]
+CLUSTERS = 32  # Number of clusters
+P = 5  # Probing count
 
 
 class Node:
@@ -31,82 +23,157 @@ class Node:
 
 
 class IVF_PQ:
-    def __init__(self, data_file_path, n_clusters, n_probe, pq: PQ):
-        self.n_clusters = n_clusters
-        self.n_probe = n_probe
-        self.data_size = None
-        self.data_file_path = data_file_path
+    def __init__(self, file_path="saved_db.csv", new_db=True):
         self.index_file_path = "index.bin"
         self.centroids_file_path = "centroids.bin"
+        self.n_clusters = CLUSTERS
+        self.n_probe = P
+        self.data_size = 0
+        self.data_file_path = file_path
+        if file_path == "saved_db_10k.csv":
+            self.data_size = 10000
+        elif file_path == "saved_db_100k.csv":
+            self.data_size = 100000
+        elif file_path == "saved_db_1m.csv":
+            self.data_size = 1000000
+        elif file_path == "saved_db_5m.csv":
+            self.data_size = 5000000
+        elif file_path == "saved_db_10m.csv":
+            self.data_size = 10000000
+        elif file_path == "saved_db_15m.csv":
+            self.data_size = 15000000
+        elif file_path == "saved_db_20m.csv":
+            self.data_size = 20000000
+        self.set_number_of_clusters()
+
         self.centroids = None
         self.vectors = []
-        self.inverted_index = {}
-        self.centroids_dict = {}
-        self.pq = pq
-        self.dim = self.pq.number_of_segments
+        self.index_np = None
+        self.centroids_np = None
+        self.iterations = 0
+        self.pq = PQ(10, 14, D, self.data_file_path, False)
+        self.new_dim = self.pq.number_of_segments
 
     def calc_similarity(self, vec1, vec2):
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
-    def euclidean_distance(self, vec1, vec2):
-        return np.linalg.norm(np.array(vec1) - np.array(vec2))
+    def save_vectors(self, rows):
+        if self.data_size == 10000:
+            with open(self.data_file_path, "w") as fout:
+                for row in rows:
+                    id, embed = row["id"], row["embed"]
+                    row_str = f"{id}," + ",".join([str(e) for e in embed])
+                    fout.write(f"{row_str}\n")
+        else:
+            np.savetxt(self.data_file_path, rows, delimiter=',')
 
-    def save_vectors(self, records):
-        with open(self.data_file_path, 'wb') as file:
-            for record in records:
-                id_size = 'i'
-                vec_size = 'f' * len(record["embed"])
-                binary_data = struct.pack(
-                    id_size + vec_size, record["id"], *record["embed"])
-                file.write(binary_data)
+    def set_number_of_clusters(self):
+        print("Setting params")
+        if self.data_size == 10000:
+            self.n_clusters = 32
+            self.data_file_path = "saved_db_10k.csv"
+            self.index_file_path = "index_10k.bin"
+            self.centroids_file_path = "centroids_10k.bin"
+        elif self.data_size == 100000:
+            self.n_clusters = 128
+            self.n_probe = 10
+            self.data_file_path = "saved_db_100k/saved_db_100k.csv"
+            self.index_file_path = "saved_db_100k/index_100k.bin"
+            self.centroids_file_path = "saved_db_100k/centroids_100k.bin"
+        elif self.data_size == 1000000:
+            self.n_clusters = 512
+            self.n_probe = 10
+            self.data_file_path = "saved_db_1m/saved_db_1m.csv"
+            self.index_file_path = "saved_db_1m/index_1m.bin"
+            self.centroids_file_path = "saved_db_1m/centroids_1m.bin"
+        elif self.data_size == 5000000:
+            self.n_clusters = 1024
+            self.n_probe = 10
+            self.data_file_path = "saved_db_5m/saved_db_5m.csv"
+            self.index_file_path = "saved_db_5m/index_5m.bin"
+            self.centroids_file_path = "saved_db_5m/centroids_5m.bin"
+        elif self.data_size == 10000000:
+            self.n_clusters = 2048
+            self.n_probe = 10
+            self.data_file_path = "saved_db_10m/saved_db_10m.csv"
+            self.index_file_path = "saved_db_10m/index_10m.bin"
+            self.centroids_file_path = "saved_db_10m/centroids_10m.bin"
+        elif self.data_size == 15000000:
+            self.n_clusters = 4096
+            self.n_probe = 10
+            self.data_file_path = "saved_db_15m/saved_db_15m.csv"
+            self.index_file_path = "saved_db_15m/index_15m.bin"
+            self.centroids_file_path = "saved_db_15m/centroids_15m.bin"
+        elif self.data_size == 20000000:
+            self.n_clusters = 6144
+            self.n_probe = 10
+            self.data_file_path = "saved_db_20m/saved_db_20m.csv"
+            self.index_file_path = "saved_db_20m/index_20m.bin"
+            self.centroids_file_path = "saved_db_20m/centroids_20m.bin"
 
-    def insert_records(self, rows: List[Dict[int, Annotated[List[float], D]]]):
+    def insert_records(self, rows):
+        self.data_size += len(rows)
+        print("Data Size:", self.data_size)
+        self.set_number_of_clusters()
+        print("Number of Clusters:", self.n_clusters)
         self.save_vectors(rows)
+        print("Vectors saved")
         self.build_index()
+        print("Index built")
 
     def read_data(self):
-        self.vectors = list(self.vectors)
-        chunk_size = struct.calcsize('i') + (struct.calcsize('f') * D)
-        with open(self.data_file_path, 'rb') as file:
-            while True:
-                chunk = file.read(chunk_size)
-                if not chunk:
-                    break
-                _, *vector = struct.unpack('I' + 'f' * D, chunk)
-                self.vectors.append(vector)
-        self.vectors = np.array(self.vectors)
-        self.pq.train(self.vectors)
+        if self.data_size == 10000:
+            df = pd.read_csv(self.data_file_path, header=None)
 
-    def generate_ivf(self):
-        for i in range(self.n_clusters):
-            self.inverted_index[i] = []
-            self.centroids_dict[i] = [self.centroids[i], 0, 0]
+            self.vectors = df.iloc[:, 1:].to_numpy()
+        else:
+            self.vectors = np.loadtxt(self.data_file_path, delimiter=',')
 
-        # Assign each vector to the nearest centroid
+    def train_ivf(self):
         similarities = []
+        norms = np.linalg.norm(self.centroids, axis=1)
         for vector in self.vectors:
-            vec_nearest = [self.calc_similarity(
-                vector, centroid) for centroid in self.centroids]
-            similarities.append(vec_nearest)
-        assigned_centroids = np.argmax(similarities, axis=1)
+            similarities.append(np.dot(self.centroids, vector) / (
+                norms * np.linalg.norm(vector)))
+            # similarities.append(np.linalg.norm(
+            #     self.centroids - vector, axis=1))
+        return np.argmax(similarities, axis=1)
+        # return np.argmin(similarities, axis=1)
 
+    def populate_index(self, assigned_centroids, offset=0):
+        self.vectors = self.pq.get_compressed_data(self.vectors)
         for vector_id, centroid_idx in enumerate(assigned_centroids):
-            self.centroids_dict[centroid_idx][1] += 1
-            vec = self.pq.get_compressed_data(self.vectors[vector_id])
-            self.inverted_index[centroid_idx].append(Node(vector_id, vec))
+            self.centroids_np['count'][centroid_idx] += 1
+            self.index_np[centroid_idx].append(
+                Node(vector_id + offset, self.vectors[vector_id]))
 
-        # Sort centroids_dict and inverted_index
-        self.centroids_dict = dict(sorted(self.centroids_dict.items()))
-        self.inverted_index = dict(sorted(self.inverted_index.items()))
+        sum_count = np.cumsum(self.centroids_np['count'])
+        self.centroids_np['prev_count'] = np.roll(sum_count, shift=1)
+        self.centroids_np['prev_count'][0] = 0
 
-        sum = 0
-        for _, val in self.centroids_dict.items():
-            val[2] = sum
-            sum += val[1]
+    def generate_ivf(self, flag=True, offset=0):
+        if offset == 0:
+            self.pq.insert_records(self.vectors)
+            print("PQ Trained")
+        if flag:
+            self.index_np = np.empty(self.n_clusters, dtype=Node)
+            self.index_np[:] = [[] for _ in range(self.n_clusters)]
+
+            dtype = [('vector', np.float64, D), ('count', np.int32),
+                     ('prev_count', np.int32)]
+            self.centroids_np = np.zeros(self.n_clusters, dtype=dtype)
+
+            self.centroids_np['vector'] = self.centroids
+            self.centroids_np['count'] = 0
+            self.centroids_np['prev_count'] = 0
+
+        assigned_centroids = self.train_ivf()
+
+        self.populate_index(assigned_centroids, offset)
 
     def save_index(self):
         with open(self.index_file_path, 'wb') as file:
-            for vectors in list(self.inverted_index.values()):
+            for vectors in self.index_np:
                 for node in vectors:
                     id_size = 'i'
                     vec_size = 'i' * len(node.data)
@@ -118,81 +185,100 @@ class IVF_PQ:
 
     def save_centroids(self):
         with open(self.centroids_file_path, 'wb') as file:
-            for centroid in list(self.centroids_dict.values()):
-                vec_size = 'f' * len(centroid[0])
+            for centroid in self.centroids_np:
+                vec_size = 'f' * D
                 count_size = 'i'
                 prev_count_size = 'i'
 
                 binary_data = struct.pack(
-                    vec_size + count_size + prev_count_size, *centroid[0], centroid[1], centroid[2])
+                    vec_size + count_size + prev_count_size, *centroid['vector'], centroid['count'], centroid['prev_count'])
 
                 file.write(binary_data)
 
     def load_centroids(self):
-        vec_size = struct.calcsize('f') * D
-        count_size = struct.calcsize('i')
-        prev_count_size = struct.calcsize('i')
-        chunk_size = vec_size + count_size + prev_count_size
+        dtype = np.dtype([('values', 'f', D), ('x', 'i'), ('y', 'i')])
 
-        centroids = []
-        with open(self.centroids_file_path, "rb") as file:
-            while chunk := file.read(chunk_size):
-                vec_size = 'f' * D
-                count_size = 'i'
-                prev_count_size = 'i'
-                # Unpacking the binary data
-                *values, x, y = struct.unpack(vec_size +
-                                              count_size + prev_count_size, chunk)
-                centroids.append([values, x, y])
+        return np.memmap(
+            self.centroids_file_path, dtype=dtype, mode='r+')
 
-        return centroids
+    def handle_big_data(self, chunk_size):
+        # Iterate through chunks
+        for chunk_number, chunk in enumerate(pd.read_csv(self.data_file_path, chunksize=chunk_size, header=None)):
+            print(f"Processing Chunk {chunk_number + 1}")
+            self.vectors = np.array(chunk)
+
+            if chunk_number == 0:
+                self.handle_max_1m(stop_at=1000000 * (self.iterations / 2.5))
+            elif chunk_number + 1 <= self.iterations:
+                self.generate_ivf(False, offset=chunk_number * chunk_size)
+                print("Index and centroids dicts updated")
+                self.save_index()
+                print("Index file updated")
+                self.save_centroids()
+                print("Centroids file updated")
+            else:
+                break
+
+    def handle_max_1m(self, stop_at=1000000):
+        self.centroids = run_kmeans_minibatch(
+            self.vectors[:stop_at] if self.data_size > 1000000 else self.vectors, k=self.n_clusters)
+        print("Centroids set")
+        self.generate_ivf()
+        print("IVF Trained")
+        self.save_centroids()
+        print("Centroids saved")
+        self.save_index()
+        print("Index saved")
 
     def build_index(self):
-        self.read_data()
-        self.centroids = run_kmeans_minibatch(self.vectors, k=self.n_clusters)
-
-        self.generate_ivf()
-
-        self.save_centroids()
-        self.save_index()
+        if (self.data_size > 1000000):
+            print("Handling Big Data")
+            chunk_size = 500000
+            self.iterations = self.data_size // chunk_size
+            print("Chunk size:", chunk_size)
+            print("Number of Iterations:", self.iterations)
+            self.handle_big_data(chunk_size)
+        else:
+            self.read_data()
+            self.handle_max_1m()
 
     def retrive(self, query, k):
-        centroids_list = self.load_centroids()
-        centroid_vectors, counts, prev_counts = zip(*centroids_list)
+        centroids_array = self.load_centroids()
+        prev_counts = centroids_array['y']
+        counts = centroids_array['x']
+        centroid_vectors = centroids_array['values']
 
-        similarities = [self.calc_similarity(
-            query[0], centroid) for centroid in centroid_vectors]
+        similarities = np.dot(centroid_vectors, query[0]) / (
+            np.linalg.norm(centroid_vectors, axis=1) * np.linalg.norm(query[0]))
 
         nearest_centroid_indices = np.argsort(similarities)[-self.n_probe:]
 
-        self.pq.generate_query_table(query)
+        dtype = np.dtype([('id', 'i'), ('vector', 'i', self.new_dim)])
 
-        query = self.pq.get_compressed_data(query)
-
-        # Search in each of the nearest centroids
+        mmapped_array = np.memmap(self.index_file_path, dtype=dtype, mode='r')
         nearest_vectors = []
-        with open('index.bin', 'rb') as file:
-            for centroid_idx in nearest_centroid_indices:
-                count = 0
-                distances = []
-                ids = []
-                chunk_size = struct.calcsize(
-                    'i') + (struct.calcsize('i') * self.dim)
-                file.seek(prev_counts[centroid_idx] * chunk_size)
 
-                # Reading records after the jump
-                while count != counts[centroid_idx]:
-                    chunk = file.read(chunk_size)
-                    id, *vector = struct.unpack('i' + 'i' * self.dim, chunk)
+        for centroid_idx in nearest_centroid_indices:
+            start_idx = prev_counts[centroid_idx]
+            end_idx = start_idx + counts[centroid_idx]
 
-                    distances.append(self.pq.get_distance(vector))
+            # Extract relevant records using slicing
+            relevant_records = mmapped_array[start_idx:end_idx]
 
-                    ids.append(id)
+            # Calculate similarities for all records in one go
+            # similarities = np.dot(relevant_records['vector'], query[0]) / (
+            #     np.linalg.norm(relevant_records['vector'], axis=1) * np.linalg.norm(query[0]))
+            similarities = self.pq.get_distance(
+                query, relevant_records['vector'])
 
-                    count += 1
+            # Combine similarities with record IDs
+            nearest_vectors.extend(zip(similarities, relevant_records['id']))
 
-                sorted_distances = np.argsort(distances)[-k:]
-                for idx in sorted_distances:
-                    bisect.insort(nearest_vectors, (distances[idx], ids[idx]))
+        # Sort the nearest_vectors and get the top-k results
+        result_ids = [vector[1] for vector in heapq.nsmallest(
+            k, nearest_vectors, key=lambda x: x[0])]
 
-        return [vector[1] for vector in nearest_vectors[-k:]]
+        del mmapped_array
+        del centroids_array
+
+        return result_ids

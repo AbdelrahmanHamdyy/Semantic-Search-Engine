@@ -167,3 +167,10 @@ vectors.bin
 saved_db.bin
 hashesLSH.bin
 uniform_planes.bin
+
+saved_db_100k
+saved_db_1m
+saved_db_5m
+saved_db_10m
+saved_db_15m
+saved_db_20m

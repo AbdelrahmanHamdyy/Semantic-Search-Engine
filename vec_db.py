@@ -198,16 +198,21 @@ class VecDB:
             self.vectors = np.array(chunk)
 
             if chunk_number == 0:
-                self.handle_max_1m(stop_at=1000000 * (self.iterations / 2.5))
+                self.centroids = run_kmeans_minibatch(
+                    self.vectors[:int(
+                        1000000 * (self.iterations / 2.5))] if self.data_size > 1000000 else self.vectors, k=self.n_clusters)
+                print("Centroids set")
+                self.generate_ivf()
+                print("IVF Trained")
             elif chunk_number + 1 <= self.iterations:
                 self.generate_ivf(False, offset=chunk_number * chunk_size)
                 print("Index and centroids dicts updated")
-                self.save_index()
-                print("Index file updated")
-                self.save_centroids()
-                print("Centroids file updated")
             else:
                 break
+        self.save_index()
+        print("Index file saved")
+        self.save_centroids()
+        print("Centroids file saved")
 
     def handle_max_1m(self, stop_at=1000000):
         self.centroids = run_kmeans_minibatch(
@@ -223,7 +228,7 @@ class VecDB:
     def build_index(self):
         if (self.data_size > 1000000):
             print("Handling Big Data")
-            chunk_size = 500000
+            chunk_size = 100000
             self.iterations = self.data_size // chunk_size
             print("Chunk size:", chunk_size)
             print("Number of Iterations:", self.iterations)

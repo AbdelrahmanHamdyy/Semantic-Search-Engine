@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import List
 from IVF_PQ import IVF_PQ
+from IVF import IVF
 from PQ import PQ
 from vec_db import VecDB
 DATA_PATH = "saved_db.csv"
@@ -27,7 +28,7 @@ def run_queries(db, query, top_k, actual_ids, num_runs):
     results = []
     for _ in range(num_runs):
         tic = time.time()
-        db_ids = db.retrieve(query, top_k)
+        db_ids = db.retrive(query, top_k)
         toc = time.time()
         run_time = toc - tic
         results.append(Result(run_time, top_k, db_ids, actual_ids))
@@ -78,7 +79,7 @@ def evaluate(size, label):
     records_np = rng.random((10**7*2, 70), dtype=np.float32)
     if size == 10000:
         records_dict = [{"id": i, "embed": list(row)}
-                        for i, row in enumerate(records_np)]
+                        for i, row in enumerate(records_np[:size])]
         db.insert_records(records_dict)
     else:
         db.insert_records(records_np[:size])
@@ -102,8 +103,8 @@ def evaluate(size, label):
 if __name__ == "__main__":
     # evaluate(10000, "10k")
     # evaluate(100000, "100k")
-    evaluate(1000000, "1M")
+    # evaluate(1000000, "1M")
     # evaluate(5000000, "5M")
     # evaluate(10000000, "10M")
     # evaluate(15000000, "15M")
-    # evaluate(20000000, "20M")
+    evaluate(20000000, "20M")
