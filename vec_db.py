@@ -229,6 +229,12 @@ class VecDB:
         if (self.data_size > 1000000):
             print("Handling Big Data")
             chunk_size = 100000
+            if self.data_size == 5000000:
+                chunk_size = 1000000
+            elif self.data_size == 10000000:
+                chunk_size = 500000
+            elif self.data_size == 15000000:
+                chunk_size = 250000
             self.iterations = self.data_size // chunk_size
             print("Chunk size:", chunk_size)
             print("Number of Iterations:", self.iterations)

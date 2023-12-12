@@ -74,16 +74,15 @@ def evaluate(size, label):
     rng = np.random.default_rng(DB_SEED)
     rng_query = np.random.default_rng(QUERY_SEED)
 
-    db = VecDB()
+    db = VecDB("saved_db_1m.csv")
 
     records_np = rng.random((10**7*2, 70), dtype=np.float32)
-    if size == 10000:
-        records_dict = [{"id": i, "embed": list(row)}
-                        for i, row in enumerate(records_np[:size])]
-        db.insert_records(records_dict)
-    else:
-        db.insert_records(records_np[:size])
-    _len = len(records_np)
+    # if size == 10000:
+    #     records_dict = [{"id": i, "embed": list(row)}
+    #                     for i, row in enumerate(records_np[:size])]
+    #     db.insert_records(records_dict)
+    # else:
+    #     db.insert_records(records_np[:size])
 
     query = rng_query.random((1, 70), dtype=np.float32)
     actual_ids_20m = np.argsort(records_np.dot(query.T).T / (np.linalg.norm(
@@ -103,8 +102,8 @@ def evaluate(size, label):
 if __name__ == "__main__":
     # evaluate(10000, "10k")
     # evaluate(100000, "100k")
-    # evaluate(1000000, "1M")
+    evaluate(1000000, "1M")
     # evaluate(5000000, "5M")
     # evaluate(10000000, "10M")
     # evaluate(15000000, "15M")
-    evaluate(20000000, "20M")
+    # evaluate(20000000, "20M")
