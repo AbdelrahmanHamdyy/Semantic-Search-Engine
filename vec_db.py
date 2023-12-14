@@ -13,7 +13,7 @@ K = 5  # TOP_K
 RUNS = 10  # Number of Runs
 
 CLUSTERS = 32  # Number of clusters
-P = 5  # Probing count
+P = 19  # Probing count
 
 
 class Node:
@@ -50,6 +50,7 @@ class VecDB:
         self.vectors = []
         self.index_np = None
         self.centroids_np = None
+        self.labels = None
         self.iterations = 0
 
     def calc_similarity(self, vec1, vec2):
@@ -57,59 +58,65 @@ class VecDB:
 
     def save_vectors(self, rows):
         if self.data_size == 10000:
-            with open(self.data_file_path, "a+") as fout:
+            with open(self.data_file_path, "w") as fout:
                 for row in rows:
                     id, embed = row["id"], row["embed"]
                     row_str = f"{id}," + ",".join([str(e) for e in embed])
                     fout.write(f"{row_str}\n")
         else:
             np.savetxt(self.data_file_path, rows, delimiter=',')
+            if self.data_size >= 10000000:
+                print("Generating centroids (>10m)")
+                self.centroids, _ = run_kmeans2(
+                    rows[:1000000], k=self.n_clusters)
 
     def set_number_of_clusters(self):
         if self.data_size == 10000:
-            self.n_clusters = 32
+            self.n_clusters = 16
+            self.n_probe = 19
             self.data_file_path = "saved_db_10k.csv"
             self.index_file_path = "index_10k.bin"
             self.centroids_file_path = "centroids_10k.bin"
         elif self.data_size == 100000:
-            self.n_clusters = 128
-            self.n_probe = 10
+            self.n_clusters = 64
+            self.n_probe = 15
             self.data_file_path = "saved_db_100k/saved_db_100k.csv"
             self.index_file_path = "saved_db_100k/index_100k.bin"
             self.centroids_file_path = "saved_db_100k/centroids_100k.bin"
         elif self.data_size == 1000000:
-            self.n_clusters = 512
-            self.n_probe = 10
+            self.n_clusters = 200
+            self.n_probe = 15
             self.data_file_path = "saved_db_1m/saved_db_1m.csv"
             self.index_file_path = "saved_db_1m/index_1m.bin"
             self.centroids_file_path = "saved_db_1m/centroids_1m.bin"
         elif self.data_size == 5000000:
-            self.n_clusters = 1024
-            self.n_probe = 10
+            self.n_clusters = 750
+            self.n_probe = 33
             self.data_file_path = "saved_db_5m/saved_db_5m.csv"
             self.index_file_path = "saved_db_5m/index_5m.bin"
             self.centroids_file_path = "saved_db_5m/centroids_5m.bin"
         elif self.data_size == 10000000:
-            self.n_clusters = 2048
-            self.n_probe = 10
+            self.n_clusters = 1024
+            self.n_probe = 30
             self.data_file_path = "saved_db_10m/saved_db_10m.csv"
             self.index_file_path = "saved_db_10m/index_10m.bin"
             self.centroids_file_path = "saved_db_10m/centroids_10m.bin"
         elif self.data_size == 15000000:
-            self.n_clusters = 4096
-            self.n_probe = 10
+            self.n_clusters = 1536
+            self.n_probe = 55
             self.data_file_path = "saved_db_15m/saved_db_15m.csv"
             self.index_file_path = "saved_db_15m/index_15m.bin"
             self.centroids_file_path = "saved_db_15m/centroids_15m.bin"
         elif self.data_size == 20000000:
-            self.n_clusters = 6144
-            self.n_probe = 10
+            self.n_clusters = 2048
+            self.n_probe = 77
             self.data_file_path = "saved_db_20m/saved_db_20m.csv"
             self.index_file_path = "saved_db_20m/index_20m.bin"
             self.centroids_file_path = "saved_db_20m/centroids_20m.bin"
 
     def insert_records(self, rows):
-        self.data_size += len(rows)
+        if self.data_size == 0:
+            self.data_size += len(rows)
         print("Data Size:", self.data_size)
         self.set_number_of_clusters()
         print("Number of Clusters:", self.n_clusters)
@@ -198,10 +205,8 @@ class VecDB:
             self.vectors = np.array(chunk)
 
             if chunk_number == 0:
-                self.centroids = run_kmeans_minibatch(
-                    self.vectors[:int(
-                        1000000 * (self.iterations / 2.5))] if self.data_size > 1000000 else self.vectors, k=self.n_clusters)
-                print("Centroids set")
+                # self.centroids, _ = run_kmeans2(
+                #     self.vectors, k=self.n_clusters)
                 self.generate_ivf()
                 print("IVF Trained")
             elif chunk_number + 1 <= self.iterations:
@@ -215,7 +220,7 @@ class VecDB:
         print("Centroids file saved")
 
     def handle_max_1m(self, stop_at=1000000):
-        self.centroids = run_kmeans_minibatch(
+        self.centroids, self.labels = run_kmeans2(
             self.vectors[:stop_at] if self.data_size > 1000000 else self.vectors, k=self.n_clusters)
         print("Centroids set")
         self.generate_ivf()
@@ -228,13 +233,13 @@ class VecDB:
     def build_index(self):
         if (self.data_size > 1000000):
             print("Handling Big Data")
-            chunk_size = 100000
+            chunk_size = 200000
             if self.data_size == 5000000:
                 chunk_size = 1000000
             elif self.data_size == 10000000:
                 chunk_size = 500000
             elif self.data_size == 15000000:
-                chunk_size = 250000
+                chunk_size = 300000
             self.iterations = self.data_size // chunk_size
             print("Chunk size:", chunk_size)
             print("Number of Iterations:", self.iterations)

@@ -15,8 +15,8 @@ def run_kmeans_minibatch(data, k):
 
 
 def run_kmeans2(data, k):
-    centroids, _ = kmeans2(data, k)
-    return centroids
+    centroids, labels = kmeans2(data, k)
+    return centroids, labels
 
 
 def run_kmeans(data, k):

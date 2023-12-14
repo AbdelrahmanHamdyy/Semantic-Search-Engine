@@ -12,7 +12,7 @@ from vec_db import VecDB
 DATA_PATH = "saved_db.csv"
 results = []
 DB_SEED = 50
-QUERY_SEED = 10
+QUERY_SEED = 20
 
 
 @dataclass
@@ -70,11 +70,10 @@ def get_actual_ids_first_k(actual_sorted_ids, k):
     return [id for id in actual_sorted_ids if id < k]
 
 
-def evaluate(size, label):
+def evaluate(size, label, path="saved_db.csv"):
     rng = np.random.default_rng(DB_SEED)
-    rng_query = np.random.default_rng(QUERY_SEED)
 
-    db = VecDB("saved_db_1m.csv")
+    db = VecDB(path)
 
     records_np = rng.random((10**7*2, 70), dtype=np.float32)
     # if size == 10000:
@@ -83,27 +82,32 @@ def evaluate(size, label):
     #     db.insert_records(records_dict)
     # else:
     #     db.insert_records(records_np[:size])
+    i = 10
+    while True:
+        rng_query = np.random.default_rng(i)
+        query = rng_query.random((1, 70), dtype=np.float32)
+        actual_ids_20m = np.argsort(records_np.dot(query.T).T / (np.linalg.norm(
+            records_np, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
 
-    query = rng_query.random((1, 70), dtype=np.float32)
-    actual_ids_20m = np.argsort(records_np.dot(query.T).T / (np.linalg.norm(
-        records_np, axis=1) * np.linalg.norm(query)), axis=1).squeeze().tolist()[::-1]
+        actual_ids = get_actual_ids_first_k(actual_ids_20m, size)
 
-    actual_ids = get_actual_ids_first_k(actual_ids_20m, size)
+        res = run_queries(db, query, 5, actual_ids, 10)
 
-    res = run_queries(db, query, 5, actual_ids, 10)
+        res, mem = memory_usage_run_queries((db, query, 5, actual_ids, 3))
+        eval = evaluate_result(res)
+        to_print = f"SEED {i}: {label}\tscore\t{eval[0]}\ttime\t{eval[1]:.2f}\tRAM\t{mem:.2f} MB"
 
-    res, mem = memory_usage_run_queries((db, query, 5, actual_ids, 3))
-    eval = evaluate_result(res)
-    to_print = f"{label}\tscore\t{eval[0]}\ttime\t{eval[1]:.2f}\tRAM\t{mem:.2f} MB"
-
-    print(to_print)
+        print(to_print)
+        i += 10
+        if i == 110:
+            break
 
 
 if __name__ == "__main__":
     # evaluate(10000, "10k")
-    # evaluate(100000, "100k")
-    evaluate(1000000, "1M")
-    # evaluate(5000000, "5M")
-    # evaluate(10000000, "10M")
-    # evaluate(15000000, "15M")
-    # evaluate(20000000, "20M")
+    # evaluate(100000, "100k", "saved_db_100k.csv")
+    # evaluate(1000000, "1M", "saved_db_1m.csv")
+    # evaluate(5000000, "5M", "saved_db_5m.csv")
+    evaluate(10000000, "10M", "saved_db_10m.csv")
+    # evaluate(15000000, "15M", "saved_db_15m.csv")
+    # evaluate(20000000, "20M", "saved_db_20m.csv")
