@@ -1,11 +1,7 @@
-from datasketch import MinHash, MinHashLSH
 import numpy as np
 import numpy as np
-from collections import defaultdict
-import pickle
 import heapq
 import struct
-import h5py
 
 class LSH:
     # hash_size: the length of the resulting binary hash code
@@ -50,6 +46,7 @@ class LSH:
         # self.hash_tables = dict() #[dict() for _ in range(self.num_hashtables)]
         self.hash_tables  = np.empty((self.num_hashtables,2**self.hash_size,), dtype=object)
         self.hash_tables [:,:] = [set() for _ in range(2**self.hash_size)]
+        
     # hash input_point and store it in the corresponding hash table
     def _hash(self, planes, input_point):
         input_point = np.array(input_point)  # for faster dot product
@@ -65,7 +62,6 @@ class LSH:
                     id_size + vec_size, indx, *vector)
                 file.write(binary_data)
 
-    
     def insert_records(self, data):
         self.data_size += len(data)
         self.save_vectors(data)
@@ -94,10 +90,7 @@ class LSH:
                     binary_data = struct.pack(
                         vec_size, *ele)
                     file.write(binary_data)
-
-    # def save_index(self, index):
      
-
     def save_hashes(self):
         count=0
         with open(self.index_file_path, 'wb') as file_vector, open(self.hashes_file_path, 'wb') as file:
@@ -106,7 +99,7 @@ class LSH:
                 count_size = 'i'
                 prev_count_size = 'i'
                 binary_data_hashes = bytearray()
-                # print("---------------")
+                
                 for ele in range(2**self.hash_size):
                     temp = self.hash_tables[i][ele]
                     for vec in temp:
@@ -117,10 +110,8 @@ class LSH:
 
                     binary_data_hashes += struct.pack(hash_size + count_size + prev_count_size, ele, len(temp), count)
                     count += len(temp)
-                    # print(len(temp))
                 file.write(binary_data_hashes)
 
-    
     def load_hashes(self):
         dtype = np.dtype([('key_hash', 'i'), ('count', 'i'),('prev', 'i')])
 

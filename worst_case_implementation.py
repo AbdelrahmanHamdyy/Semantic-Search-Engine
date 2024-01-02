@@ -1,7 +1,6 @@
 from typing import Dict, List, Annotated
 import numpy as np
 
-
 class VecDBWorst:
     def __init__(self, file_path="saved_db.csv", new_db=True) -> None:
         self.file_path = file_path

@@ -1,19 +1,12 @@
-import math
-from sklearn.cluster import KMeans, MiniBatchKMeans
+from sklearn.cluster import MiniBatchKMeans
 import numpy as np
-import bisect
 import struct
-import time
 from PQ import *
 from worst_case_implementation import *
-from dataclasses import dataclass
-from scipy.cluster.vq import kmeans2
 
 '''
 This Class is used to implement PQ using its all functionalities
 '''
-
-
 class PQ:
     '''
     Firstly What we have to know about the PQ which we will use is 
@@ -23,7 +16,6 @@ class PQ:
     Then we will get the size of each segment
     And Initializing The K-means estimators that we will use in predicting
     '''
-
     def __init__(self, cluster_bits: int, number_of_segments: int, data_length: int, data_path: str, initially_load: bool):
         assert data_length % number_of_segments == 0, "Segment Size must be equal"
         # Number of Clusters per each segment
@@ -42,8 +34,7 @@ class PQ:
             n_clusters=self.number_of_clusters, n_init=10) for _ in range(self.number_of_segments)]
         # Now We Keep The Centroids of each estimator
         self.centroids = []
-        self.table = np.empty(
-            (self.number_of_segments, self.number_of_clusters))
+        self.table = np.empty((self.number_of_segments, self.number_of_clusters))
         self.data_path = data_path
         self.index_file_path = "index.bin"
         self.centroids_file_path = "centroids.bin"
@@ -121,19 +112,10 @@ class PQ:
                 (self.number_of_segments, (self.number_of_clusters)*self.segment_size))
             print(data)
 
-        pass
-
-    def load_vectors(self):
-        pass
-
-    def load_quantized_vectors(self):
-        pass
-
     '''
     Here we are reading our data and training our kmeans models on the read data
     So This is The First Step to do
     '''
-
     def read_data(self):
         chunk_size = struct.calcsize(
             'i') + (struct.calcsize('i') * self.number_of_segments)
@@ -151,7 +133,6 @@ class PQ:
     '''
     Now We should train our estimators before starting any prediction
     '''
-
     def calculate_distance(self, vec1, vec2):
         return np.linalg.norm(vec1 - vec2)
 
@@ -173,7 +154,6 @@ class PQ:
     '''
     Generates a compressed Vector using The trained PQ
     '''
-
     def get_compressed_data(self, given_vector):
         assert self.isTrained == True, "You Should Train The Models First"
         result_vector = np.zeros((len(given_vector), self.number_of_segments))
@@ -189,7 +169,6 @@ class PQ:
     '''
     Generate the table between the upcoming vector to estimate its similarity with the existing vectors
     '''
-
     def generate_query_table(self, query_vector):
         assert self.isTrained == True, "You Should Train The Models First"
         for index in range(self.number_of_segments):
@@ -208,7 +187,6 @@ class PQ:
     '''
     Get distance between a database vector and the query which we calculated its table before
     '''
-
     def get_distance(self, query_vector, db_vectors):
         self.generate_query_table(query_vector)
         distance_array = np.zeros((len(db_vectors))).astype(float)

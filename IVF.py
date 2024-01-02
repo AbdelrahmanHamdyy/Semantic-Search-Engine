@@ -6,30 +6,32 @@ from PQ import *
 from kmeans import *
 from worst_case_implementation import *
 
+DIM = 70  # Vector Dimension
 
-N = 1000000  # Size of the data
-D = 70  # Vector Dimension
-K = 5  # TOP_K
-RUNS = 10  # Number of Runs
-
-CLUSTERS = 32  # Number of clusters
-P = 5  # Probing count
-
+# Number of Clusters, Probing Count, Data File Path, Index File Path, Centroids File Path
+params = {
+    10000: [16, 10, "saved_db_10k.csv", "index_10k.bin", "centroids_10k.bin"],
+    100000: [64, 10, "saved_db_100k.csv", "index_100k.bin", "centroids_100k.bin"],
+    1000000: [200, 14, "saved_db_1m.csv", "index_1m.bin", "centroids_1m.bin"],
+    5000000: [750, 32, "saved_db_5m.csv", "index_5m.bin", "centroids_5m.bin"],
+    10000000: [1024, 30, "saved_db_10m.csv", "index_10m.bin", "centroids_10m.bin"],
+    15000000: [1536, 55, "saved_db_15m.csv", "index_15m.bin", "centroids_15m.bin"],
+    20000000: [2048, 77, "saved_db_20m.csv", "index_20m.bin", "centroids_20m.bin"],
+}
 
 class Node:
     def __init__(self, id, data):
         self.id = id
         self.data = data
-
-
+        
 class IVF:
-    def __init__(self, file_path="saved_db.csv", new_db=True):
-        self.data_size = 0
-        self.n_clusters = CLUSTERS
-        self.n_probe = P
-        self.data_file_path = file_path
+    def __init__(self, file_path="saved_db.csv"):
         self.index_file_path = "index.bin"
         self.centroids_file_path = "centroids.bin"
+        self.n_clusters = 0
+        self.n_probe = 0
+        self.data_size = 0
+        self.data_file_path = file_path
         self.centroids = None
         self.vectors = []
         self.index_np = None
@@ -41,38 +43,21 @@ class IVF:
 
     def save_vectors(self, rows):
         np.savetxt(self.data_file_path, rows, delimiter=',')
+        CAP = 1000000 if self.data_size >= 10000000 else len(rows)
+        self.centroids = run_kmeans2(rows[:CAP], k=self.n_clusters)
 
-    def set_number_of_clusters(self):
-        if self.data_size == 10000:
-            self.n_clusters = 32
-        elif self.data_size == 100000:
-            self.n_clusters = 128
-            self.n_probe = 10
-        elif self.data_size == 1000000:
-            self.n_clusters = 512
-            self.n_probe = 10
-        elif self.data_size == 5000000:
-            self.n_clusters = 1024
-            self.n_probe = 10
-        elif self.data_size == 10000000:
-            self.n_clusters = 2048
-            self.n_probe = 10
-        elif self.data_size == 15000000:
-            self.n_clusters = 4096
-            self.n_probe = 10
-        elif self.data_size == 20000000:
-            self.n_clusters = 6144
-            self.n_probe = 10
+    def set_params(self):
+        self.n_clusters = params[self.data_size][0]
+        self.n_probe = params[self.data_size][1]
+        self.data_file_path = params[self.data_size][2]
+        self.index_file_path = params[self.data_size][3]
+        self.centroids_file_path = params[self.data_size][4]
 
     def insert_records(self, rows):
-        self.data_size += len(rows)
-        print("Data Size:", self.data_size)
-        self.set_number_of_clusters()
-        print("Number of Clusters:", self.n_clusters)
+        self.data_size = len(rows)
+        self.set_params()
         self.save_vectors(rows)
-        print("Vectors saved")
         self.build_index()
-        print("Index built")
 
     def read_data(self):
         self.vectors = np.loadtxt(self.data_file_path, delimiter=',')
@@ -100,7 +85,7 @@ class IVF:
             self.index_np = np.empty(self.n_clusters, dtype=Node)
             self.index_np[:] = [[] for _ in range(self.n_clusters)]
 
-            dtype = [('vector', np.float64, D), ('count', np.int32),
+            dtype = [('vector', np.float64, DIM), ('count', np.int32),
                      ('prev_count', np.int32)]
             self.centroids_np = np.zeros(self.n_clusters, dtype=dtype)
 
@@ -127,7 +112,7 @@ class IVF:
     def save_centroids(self):
         with open(self.centroids_file_path, 'wb') as file:
             for centroid in self.centroids_np:
-                vec_size = 'f' * D
+                vec_size = 'f' * DIM
                 count_size = 'i'
                 prev_count_size = 'i'
 
@@ -137,7 +122,7 @@ class IVF:
                 file.write(binary_data)
 
     def load_centroids(self):
-        dtype = np.dtype([('values', 'f', D), ('x', 'i'), ('y', 'i')])
+        dtype = np.dtype([('values', 'f', DIM), ('x', 'i'), ('y', 'i')])
 
         return np.memmap(
             self.centroids_file_path, dtype=dtype, mode='r+')
@@ -145,39 +130,27 @@ class IVF:
     def handle_big_data(self, chunk_size):
         # Iterate through chunks
         for chunk_number, chunk in enumerate(pd.read_csv(self.data_file_path, chunksize=chunk_size, header=None)):
-            print(f"Processing Chunk {chunk_number + 1}")
             self.vectors = np.array(chunk)
 
             if chunk_number == 0:
-                self.handle_max_1m(stop_at=1000000 * (self.iterations / 2.5))
+                self.generate_ivf()
             elif chunk_number + 1 <= self.iterations:
                 self.generate_ivf(False, offset=chunk_number * chunk_size)
-                print("Index and centroids dicts updated")
-                self.save_index()
-                print("Index file updated")
-                self.save_centroids()
-                print("Centroids file updated")
             else:
                 break
-
-    def handle_max_1m(self, stop_at=1000000):
-        self.centroids = run_kmeans_minibatch(
-            self.vectors[:stop_at] if self.data_size > 1000000 else self.vectors, k=self.n_clusters)
-        print("Centroids set")
-        self.generate_ivf()
-        print("IVF Trained")
-        self.save_centroids()
-        print("Centroids saved")
+            
         self.save_index()
-        print("Index saved")
+        self.save_centroids()
+
+    def handle_max_1m(self):
+        self.generate_ivf()
+        self.save_centroids()
+        self.save_index()
 
     def build_index(self):
         if (self.data_size > 1000000):
-            print("Handling Big Data")
-            chunk_size = 500000
+            chunk_size = 1000000
             self.iterations = self.data_size // chunk_size
-            print("Chunk size:", chunk_size)
-            print("Number of Iterations:", self.iterations)
             self.handle_big_data(chunk_size)
         else:
             self.read_data()
@@ -194,7 +167,7 @@ class IVF:
 
         nearest_centroid_indices = np.argsort(similarities)[-self.n_probe:]
 
-        dtype = np.dtype([('id', 'i'), ('vector', 'f', D)])
+        dtype = np.dtype([('id', 'i'), ('vector', 'f', DIM)])
 
         mmapped_array = np.memmap(self.index_file_path, dtype=dtype, mode='r')
         nearest_vectors = []

@@ -5,11 +5,9 @@ from dataclasses import dataclass
 from typing import List
 from evaluation import eval
 
-
 D = 70
 K = 5
 RUNS = 10
-
 
 @dataclass
 class Result:
@@ -77,9 +75,3 @@ def run_hnsw_faiss(dim=D, top_k=K, num_runs=RUNS, data=None):
     index.add(data)
     results = run_queries(data, top_k, num_runs, index)
     print(eval(results))
-
-
-if __name__ == '__main__':
-    run_ivf_pq_faiss()
-    # run_ivf_faiss()
-    # run_hnsw_faiss()
